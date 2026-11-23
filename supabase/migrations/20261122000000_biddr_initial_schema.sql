@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     full_name TEXT,
     avatar_url TEXT,
     bio TEXT,
+    location TEXT,
     is_seller BOOLEAN NOT NULL DEFAULT FALSE,
     seller_verified BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -197,6 +198,7 @@ BEGIN
         ends_at = v_new_ends_at,
         updated_at = v_now
     WHERE id = p_drop_id;
+    
 
     RETURN jsonb_build_object(
         'success', true,
@@ -296,3 +298,100 @@ BEGIN
     );
 END;
 $$;
+
+-- ============================================================
+-- PROFILE PRIVILEGE SECURITY GUARD
+-- Prevents clients from elevating is_seller or seller_verified
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.protect_profile_privileges()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- If caller is authenticated client, lock down privilege flags
+    IF (OLD.is_seller IS DISTINCT FROM NEW.is_seller OR OLD.seller_verified IS DISTINCT FROM NEW.seller_verified) THEN
+        IF auth.role() = 'authenticated' THEN
+            NEW.is_seller := OLD.is_seller;
+            NEW.seller_verified := OLD.seller_verified;
+        END IF;
+    END IF;
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trigger_protect_profile_privileges ON public.profiles;
+CREATE TRIGGER trigger_protect_profile_privileges
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.protect_profile_privileges();
+
+-- ============================================================
+-- AUTOMATIC PROFILE CREATION TRIGGER ON AUTH SIGNUP
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_raw_username TEXT;
+    v_clean_username TEXT;
+    v_count INT := 0;
+BEGIN
+    v_raw_username := LOWER(COALESCE(
+        NEW.raw_user_meta_data->>'username',
+        SPLIT_PART(NEW.email, '@', 1)
+    ));
+    
+    v_clean_username := REGEXP_REPLACE(v_raw_username, '[^a-z0-9_]', '', 'g');
+    IF LENGTH(v_clean_username) < 3 THEN
+        v_clean_username := 'user_' || SUBSTRING(NEW.id::TEXT, 1, 8);
+    END IF;
+
+    LOOP
+        SELECT COUNT(*) INTO v_count FROM public.profiles WHERE username = v_clean_username;
+        IF v_count = 0 THEN
+            EXIT;
+        END IF;
+        v_clean_username := v_clean_username || '_' || FLOOR(RANDOM() * 899 + 100)::INT;
+    END LOOP;
+
+    INSERT INTO public.profiles (
+        id,
+        username,
+        full_name,
+        avatar_url,
+        bio,
+        location,
+        is_seller,
+        seller_verified,
+        created_at,
+        updated_at
+    ) VALUES (
+        NEW.id,
+        v_clean_username,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
+        COALESCE(NEW.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'),
+        COALESCE(NEW.raw_user_meta_data->>'bio', ''),
+        COALESCE(NEW.raw_user_meta_data->>'location', ''),
+        FALSE,
+        FALSE,
+        NOW(),
+        NOW()
+    )
+    ON CONFLICT (id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_new_user();

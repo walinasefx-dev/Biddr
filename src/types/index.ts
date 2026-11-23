@@ -32,4 +32,17 @@ export interface CategoryCard {
   slug: string;
 }
 
+export interface UserProfile {
+  id: string;
+  username: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  location: string | null;
+  is_seller: boolean;
+  seller_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export type WaitlistRole = 'buyer' | 'seller' | 'both';

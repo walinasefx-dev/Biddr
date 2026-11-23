@@ -18,6 +18,7 @@ declare module 'lucide-react' {
   export const Sparkles: LucideIcon;
   export const User: LucideIcon;
   export const ArrowRight: LucideIcon;
+  export const ArrowLeft: LucideIcon;
   export const ArrowUpRight: LucideIcon;
   export const Clock: LucideIcon;
   export const ShieldCheck: LucideIcon;
@@ -25,6 +26,7 @@ declare module 'lucide-react' {
   export const ShieldAlert: LucideIcon;
   export const Zap: LucideIcon;
   export const Eye: LucideIcon;
+  export const EyeOff: LucideIcon;
   export const Filter: LucideIcon;
   export const Layers: LucideIcon;
   export const Watch: LucideIcon;
@@ -37,7 +39,15 @@ declare module 'lucide-react' {
   export const DollarSign: LucideIcon;
   export const Users: LucideIcon;
   export const CheckCircle2: LucideIcon;
+  export const AlertCircle: LucideIcon;
   export const Mail: LucideIcon;
+  export const Lock: LucideIcon;
+  export const MapPin: LucideIcon;
+  export const Calendar: LucideIcon;
+  export const Edit3: LucideIcon;
+  export const LogOut: LucideIcon;
+  export const Camera: LucideIcon;
+  export const ExternalLink: LucideIcon;
   export const Instagram: LucideIcon;
   export const Twitter: LucideIcon;
   export const Disc: LucideIcon;
