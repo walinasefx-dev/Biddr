@@ -13,7 +13,7 @@ export interface AuctionDrop {
   currentBid: number;
   minIncrement: number;
   bidCount: number;
-  status: 'draft' | 'scheduled' | 'live' | 'ended' | 'settled';
+  status: 'draft' | 'scheduled' | 'live' | 'ended' | 'settled' | 'cancelled' | 'sold' | 'unsold';
   startsAt: number; // Unix timestamp ms
   endsAt: number;   // Unix timestamp ms
   winnerId?: string;
@@ -149,7 +149,7 @@ export function settleAuction(
       success: true,
       settledDrop: {
         ...drop,
-        status: 'ended',
+        status: 'unsold',
         winnerId: undefined,
         winningBid: undefined,
       },
@@ -174,5 +174,127 @@ export function settleAuction(
       winnerId: winningBid.bidderId,
       winningBid: winningBid.amount,
     },
+  };
+}
+
+/**
+ * Calculates the exact minimum next bid required for a drop.
+ */
+export function calculateNextMinimumBid(drop: AuctionDrop): number {
+  if (drop.bidCount === 0) {
+    return drop.startingPrice;
+  }
+  return drop.currentBid + drop.minIncrement;
+}
+
+/**
+ * Validates auction creation parameters.
+ */
+export interface CreateAuctionInput {
+  sellerId: string;
+  isSeller: boolean;
+  title: string;
+  category: string;
+  startingPrice: number;
+  minIncrement: number;
+  startsAt?: number;
+  endsAt: number;
+  images: string[];
+}
+
+export function validateAuctionInput(input: CreateAuctionInput): {
+  valid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  if (!input.sellerId) {
+    errors.push('Seller ID is required');
+  }
+
+  if (!input.isSeller) {
+    errors.push('User does not have verified seller privileges');
+  }
+
+  if (!input.title || input.title.trim().length < 4) {
+    errors.push('Title must be at least 4 characters long');
+  }
+
+  if (!input.category || input.category === 'all') {
+    errors.push('A valid marketplace category must be selected');
+  }
+
+  if (typeof input.startingPrice !== 'number' || isNaN(input.startingPrice) || input.startingPrice <= 0) {
+    errors.push('Starting price must be a positive number greater than 0');
+  }
+
+  if (typeof input.minIncrement !== 'number' || isNaN(input.minIncrement) || input.minIncrement <= 0) {
+    errors.push('Minimum bid increment must be greater than 0');
+  }
+
+  if (!input.endsAt || input.endsAt <= (input.startsAt || Date.now())) {
+    errors.push('Auction end time must be after start time');
+  }
+
+  if (!input.images || input.images.length === 0) {
+    errors.push('At least one product image is required');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Settles an auction and constructs the corresponding buyer/seller order record.
+ */
+export interface OrderRecord {
+  id: string;
+  dropId: string;
+  buyerId: string;
+  sellerId: string;
+  amount: number;
+  status: 'pending' | 'paid' | 'escrow_held' | 'shipped' | 'delivered' | 'released' | 'cancelled';
+  createdAt: number;
+}
+
+export function settleAuctionWithOrder(
+  drop: AuctionDrop,
+  bids: BidRecord[],
+  now: number = Date.now()
+): {
+  success: boolean;
+  settledDrop?: AuctionDrop;
+  order?: OrderRecord;
+  error?: string;
+} {
+  const result = settleAuction(drop, bids, now);
+
+  if (!result.success || !result.settledDrop) {
+    return { success: false, error: result.error };
+  }
+
+  if (['settled', 'sold'].includes(result.settledDrop.status) && result.settledDrop.winnerId && result.settledDrop.winningBid) {
+    const order: OrderRecord = {
+      id: `ord_${now}_${Math.random().toString(36).substring(2, 7)}`,
+      dropId: drop.id,
+      buyerId: result.settledDrop.winnerId,
+      sellerId: drop.sellerId,
+      amount: result.settledDrop.winningBid,
+      status: 'pending',
+      createdAt: now,
+    };
+
+    return {
+      success: true,
+      settledDrop: result.settledDrop,
+      order,
+    };
+  }
+
+  return {
+    success: true,
+    settledDrop: result.settledDrop,
   };
 }

@@ -97,13 +97,13 @@ export default function Navbar() {
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-8">
-          <a
-            href="/#trending"
-            className="text-sm font-medium text-secondaryText hover:text-white transition-colors flex items-center gap-1.5"
+          <Link
+            href="/auctions"
+            className="text-sm font-semibold text-white hover:text-lime transition-colors flex items-center gap-1.5"
           >
             <Flame className="w-4 h-4 text-coral" />
-            Explore Drops
-          </a>
+            Marketplace
+          </Link>
           <a
             href="/#categories"
             className="text-sm font-medium text-secondaryText hover:text-white transition-colors"
@@ -116,13 +116,13 @@ export default function Navbar() {
           >
             How It Works
           </a>
-          <a
-            href="/#sellers"
+          <Link
+            href="/seller"
             className="text-sm font-medium text-secondaryText hover:text-white transition-colors flex items-center gap-1.5"
           >
             <Sparkles className="w-4 h-4 text-lime" />
-            Become a Seller
-          </a>
+            Seller Studio
+          </Link>
         </nav>
 
         {/* Right CTA Actions: Dynamic based on auth state */}
@@ -189,36 +189,36 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-surface-border bg-surface/98 backdrop-blur-xl px-5 pt-4 pb-6 space-y-4 animate-in slide-in-from-top-2 duration-200">
           <nav className="flex flex-col space-y-3">
-            <a
-              href="/#trending"
+            <Link
+              href="/auctions"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-bold text-white hover:bg-surface-hover"
             >
               <Flame className="w-5 h-5 text-coral" />
-              Explore Drops
-            </a>
+              Marketplace Drops
+            </Link>
             <a
               href="/#categories"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-secondaryText hover:text-white hover:bg-surface-hover"
             >
               Categories
             </a>
             <a
               href="/#how-it-works"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-secondaryText hover:text-white hover:bg-surface-hover"
             >
               How It Works
             </a>
-            <a
-              href="/#sellers"
+            <Link
+              href="/seller"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
             >
               <Sparkles className="w-5 h-5 text-lime" />
-              Become a Seller
-            </a>
+              Seller Studio
+            </Link>
           </nav>
 
           <div className="pt-4 border-t border-surface-border flex flex-col gap-3">

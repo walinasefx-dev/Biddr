@@ -1,22 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Clock, ShieldCheck, Flame, ArrowUpRight } from 'lucide-react';
+import Link from 'next/link';
+import { ShieldCheck, Flame, ArrowUpRight } from 'lucide-react';
 import type { AuctionItem } from '@/types';
+import CountdownTimer from './CountdownTimer';
 
 interface AuctionCardProps {
   auction: AuctionItem;
 }
 
 export default function AuctionCard({ auction }: AuctionCardProps) {
-  // Simple countdown representation for demonstration
-  const [timeLeft, setTimeLeft] = useState(auction.endsAt);
+  const detailUrl = `/auction/${auction.id}`;
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface transition-all duration-300 hover:-translate-y-1 hover:border-lime/50 hover:shadow-glow">
       {/* Product Image Container */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface-border">
+      <Link href={detailUrl} className="relative aspect-[4/3] w-full overflow-hidden bg-surface-border block">
         <Image
           src={auction.imageUrl}
           alt={auction.title}
@@ -48,22 +48,19 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
 
           {/* Category Tag */}
           <span className="rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-secondaryText border border-white/10 backdrop-blur-md">
-            {auction.categoryLabel}
+            {auction.categoryLabel || auction.category}
           </span>
         </div>
 
         {/* Timer Bar Overlay at Bottom of Image */}
         <div className="absolute bottom-3 inset-x-3 flex items-center justify-between rounded-xl bg-black/80 px-3 py-2 text-xs backdrop-blur-md border border-white/10">
-          <div className="flex items-center gap-1.5 text-secondaryText">
-            <Clock className="w-3.5 h-3.5 text-lime" />
-            <span className="font-mono font-medium text-white">{timeLeft}</span>
-          </div>
+          <CountdownTimer endsAt={auction.endsAt} status={auction.isLive ? 'live' : 'ended'} />
           <div className="flex items-center gap-1 text-secondaryText">
             <Flame className="w-3.5 h-3.5 text-coral" />
             <span className="font-medium text-white">{auction.bidCount} bids</span>
           </div>
         </div>
-      </div>
+      </Link>
 
       {/* Card Content Details */}
       <div className="flex flex-1 flex-col p-5">
@@ -71,24 +68,34 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
         <div className="flex items-center gap-2 mb-3">
           <div className="relative h-6 w-6 overflow-hidden rounded-full border border-surface-border bg-surface-hover">
             <Image
-              src={auction.seller.avatar}
+              src={auction.seller.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
               alt={auction.seller.name}
               fill
               className="object-cover"
             />
           </div>
-          <span className="text-xs font-medium text-secondaryText hover:text-white transition-colors truncate">
+          <Link
+            href={`/profile/${auction.seller.handle}`}
+            className="text-xs font-medium text-secondaryText hover:text-white transition-colors truncate"
+          >
             @{auction.seller.handle}
-          </span>
+          </Link>
           {auction.seller.verified && (
             <ShieldCheck className="w-3.5 h-3.5 text-biddrBlue flex-shrink-0" title="Verified Seller" />
+          )}
+          {auction.condition && (
+            <span className="ml-auto text-[10px] font-semibold text-secondaryText/80 bg-surface-hover px-2 py-0.5 rounded border border-surface-border">
+              {auction.condition}
+            </span>
           )}
         </div>
 
         {/* Product Title */}
-        <h3 className="text-base font-bold text-white line-clamp-1 group-hover:text-lime transition-colors">
-          {auction.title}
-        </h3>
+        <Link href={detailUrl} className="block">
+          <h3 className="text-base font-bold text-white line-clamp-1 group-hover:text-lime transition-colors">
+            {auction.title}
+          </h3>
+        </Link>
 
         {/* Price & Action Footer */}
         <div className="mt-4 pt-4 border-t border-surface-border flex items-end justify-between">
@@ -101,13 +108,13 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
             </div>
           </div>
 
-          <a
-            href="#waitlist"
+          <Link
+            href={detailUrl}
             className="inline-flex items-center justify-center gap-1 rounded-xl bg-surface-hover px-3.5 py-2 text-xs font-bold text-white hover:bg-lime hover:text-black border border-surface-border transition-all duration-200"
           >
             <span>Bid</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
-          </a>
+          </Link>
         </div>
       </div>
     </div>
