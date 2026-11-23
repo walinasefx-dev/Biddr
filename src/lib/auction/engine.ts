@@ -5,6 +5,10 @@
  * Both client optimistic preview and server-side logic adhere to these exact invariants.
  */
 
+import { isValidUuid, isDemoAuctionId } from './demo-auctions';
+
+export { isValidUuid, isDemoAuctionId };
+
 export interface AuctionDrop {
   id: string;
   sellerId: string;
@@ -49,6 +53,14 @@ export function placeBid(
   amount: number,
   now: number = Date.now()
 ): BidResult {
+  // Invariant 0: Drop ID must be a valid PostgreSQL UUID
+  if (!isValidUuid(drop.id)) {
+    return {
+      success: false,
+      error: `Invalid auction drop UUID: "${drop.id}". Database operations require a valid UUID.`,
+    };
+  }
+
   // Invariant 1: Auction must be live
   if (drop.status !== 'live') {
     return {
@@ -129,6 +141,14 @@ export function settleAuction(
   bids: BidRecord[],
   now: number = Date.now()
 ): { success: boolean; settledDrop?: AuctionDrop; error?: string } {
+  // Invariant 0: Drop ID must be a valid PostgreSQL UUID
+  if (!isValidUuid(drop.id)) {
+    return {
+      success: false,
+      error: `Invalid auction drop UUID: "${drop.id}". Database operations require a valid UUID.`,
+    };
+  }
+
   if (now < drop.endsAt) {
     return {
       success: false,

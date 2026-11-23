@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AuctionCard from './AuctionCard';
+import { createClient } from '@/lib/supabase/client';
 import type { AuctionItem } from '@/types';
 import { Flame, Sparkles, Filter } from 'lucide-react';
 
@@ -118,11 +119,63 @@ const SAMPLE_AUCTIONS: AuctionItem[] = [
 
 export default function TrendingAuctions() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [auctions, setAuctions] = useState<AuctionItem[]>(SAMPLE_AUCTIONS);
+
+  useEffect(() => {
+    async function loadLiveDrops() {
+      try {
+        const supabase = createClient();
+        const { data: drops, error } = await supabase
+          .from('drops')
+          .select(`
+            *,
+            seller:profiles!drops_seller_id_fkey(username, full_name, avatar_url, seller_verified)
+          `)
+          .eq('status', 'live')
+          .order('created_at', { ascending: false })
+          .limit(6);
+
+        if (!error && drops && drops.length > 0) {
+          const dbAuctions: AuctionItem[] = drops.map((d: any) => ({
+            id: d.id,
+            title: d.title,
+            category: d.category,
+            categoryLabel: d.category,
+            currentBid: Number(d.current_bid || d.starting_price || 0),
+            startingPrice: Number(d.starting_price || 0),
+            bidCount: d.bid_count || 0,
+            endsAt: d.ends_at,
+            isLive: true,
+            condition: d.condition,
+            location: d.location,
+            imageUrl:
+              d.image_url ||
+              (d.images && d.images[0]) ||
+              'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=800&q=80',
+            seller: {
+              name: d.seller?.full_name || d.seller?.username || 'Seller',
+              handle: d.seller?.username || 'seller',
+              avatar:
+                d.seller?.avatar_url ||
+                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+              verified: Boolean(d.seller?.seller_verified),
+            },
+          }));
+
+          setAuctions(dbAuctions);
+        }
+      } catch {
+        // Fallback remains active
+      }
+    }
+
+    loadLiveDrops();
+  }, []);
 
   const filteredAuctions =
     selectedCategory === 'all'
-      ? SAMPLE_AUCTIONS
-      : SAMPLE_AUCTIONS.filter((item) => item.category === selectedCategory);
+      ? auctions
+      : auctions.filter((item) => item.category === selectedCategory);
 
   return (
     <section id="trending" className="py-16 md:py-24 bg-background relative">

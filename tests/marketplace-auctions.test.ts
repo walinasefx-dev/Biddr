@@ -5,12 +5,15 @@ import {
   settleAuctionWithOrder,
   calculateNextMinimumBid,
   validateAuctionInput,
+  isValidUuid,
+  isDemoAuctionId,
   type AuctionDrop,
   type BidRecord,
   type CreateAuctionInput,
   ANTI_SNIPE_WINDOW_MS,
   ANTI_SNIPE_EXTENSION_MS,
 } from '../src/lib/auction/engine';
+import { getDemoAuction, DEMO_AUCTIONS } from '../src/lib/auction/demo-auctions';
 
 describe('Stage 3: Marketplace & Auction Experience Test Suite', () => {
   const sellerId = 'seller-uuid-100';
@@ -18,7 +21,7 @@ describe('Stage 3: Marketplace & Auction Experience Test Suite', () => {
   const buyer2Id = 'buyer-uuid-202';
 
   const mockDrop: AuctionDrop = {
-    id: 'auction-leica-m6',
+    id: '22222222-2222-4222-a222-222222222202',
     sellerId,
     title: '1984 Leica M6 Classic Rangefinder Camera',
     startingPrice: 500,
@@ -316,6 +319,128 @@ describe('Stage 3: Marketplace & Auction Experience Test Suite', () => {
       expect(result.success).toBe(true);
       expect(result.settledDrop?.winnerId).toBe(buyer1Id); // Earliest timestamp wins
       expect(result.order?.buyerId).toBe(buyer1Id);
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 5. REGRESSION SUITE: UUID VALIDATION & DEMO AUCTION ISOLATION
+  // -------------------------------------------------------------
+  describe('Regression: Non-UUID Demo ID Guard & Database Isolation', () => {
+    it('19. should explicitly identify "auc-4" and other demo IDs as non-UUIDs', () => {
+      // Must return false for all demo showcase IDs
+      expect(isValidUuid('auc-4')).toBe(false);
+      expect(isValidUuid('auc-1')).toBe(false);
+      expect(isValidUuid('auc-2')).toBe(false);
+      expect(isValidUuid('auc-3')).toBe(false);
+      expect(isValidUuid('auc-5')).toBe(false);
+      expect(isValidUuid('auc-6')).toBe(false);
+
+      // Must return false for malformed/arbitrary strings
+      expect(isValidUuid('invalid-uuid')).toBe(false);
+      expect(isValidUuid('12345')).toBe(false);
+      expect(isValidUuid('')).toBe(false);
+      expect(isValidUuid(null)).toBe(false);
+      expect(isValidUuid(undefined)).toBe(false);
+
+      // Must return true for genuine PostgreSQL UUIDs
+      expect(isValidUuid('22222222-2222-4222-a222-222222222202')).toBe(true);
+      expect(isValidUuid('f47ac10b-58cc-4372-a567-0e02b2c3d479')).toBe(true);
+      expect(isValidUuid('A6B18974-9F79-4D69-8238-1A5C6E84D412')).toBe(true);
+    });
+
+    it('20. should correctly identify demo showcase auction IDs via isDemoAuctionId', () => {
+      expect(isDemoAuctionId('auc-4')).toBe(true);
+      expect(isDemoAuctionId('auc-1')).toBe(true);
+      expect(isDemoAuctionId('auc-6')).toBe(true);
+
+      // Real UUIDs must NOT be classified as demo IDs
+      expect(isDemoAuctionId('22222222-2222-4222-a222-222222222202')).toBe(false);
+      expect(isDemoAuctionId('f47ac10b-58cc-4372-a567-0e02b2c3d479')).toBe(false);
+      expect(isDemoAuctionId('random-drop-id')).toBe(false);
+    });
+
+    it('21. should provide complete showcase data for "auc-4" without database queries', () => {
+      const demo4 = getDemoAuction('auc-4');
+      expect(demo4).toBeDefined();
+      expect(demo4?.id).toBe('auc-4');
+      expect(demo4?.title).toContain('Fujifilm X100V');
+      expect(demo4?.category).toBe('electronics');
+      expect(demo4?.current_bid).toBe(1550);
+      expect(demo4?.seller?.username).toBe('tokyo_cams');
+    });
+
+    it('22. should reject placeBid when drop.id is "auc-4" with clear UUID error', () => {
+      const demoDrop: AuctionDrop = {
+        ...mockDrop,
+        id: 'auc-4', // Non-UUID demo ID
+      };
+
+      const result = placeBid(demoDrop, buyer1Id, 1600, 1500000);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid auction drop UUID: "auc-4"');
+      expect(result.drop).toBeUndefined();
+    });
+
+    it('23. should reject settleAuction when drop.id is "auc-4" with clear UUID error', () => {
+      const demoDrop: AuctionDrop = {
+        ...mockDrop,
+        id: 'auc-4',
+      };
+      const bids: BidRecord[] = [
+        { id: 'b1', dropId: 'auc-4', bidderId: buyer1Id, amount: 600, timestamp: 1200000 },
+      ];
+
+      const settlement = settleAuction(demoDrop, bids, demoDrop.endsAt + 500);
+      expect(settlement.success).toBe(false);
+      expect(settlement.error).toContain('Invalid auction drop UUID: "auc-4"');
+    });
+
+    it('24. should reject settleAuctionWithOrder when drop.id is "auc-4"', () => {
+      const demoDrop: AuctionDrop = {
+        ...mockDrop,
+        id: 'auc-4',
+      };
+      const bids: BidRecord[] = [
+        { id: 'b1', dropId: 'auc-4', bidderId: buyer1Id, amount: 600, timestamp: 1200000 },
+      ];
+
+      const result = settleAuctionWithOrder(demoDrop, bids, demoDrop.endsAt + 500);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid auction drop UUID: "auc-4"');
+      expect(result.order).toBeUndefined();
+    });
+
+    it('25. should process placeBid, settleAuction, and order creation normally when a valid UUID is provided', () => {
+      const realDrop: AuctionDrop = {
+        ...mockDrop,
+        id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+      };
+
+      // Valid bid
+      const bidResult = placeBid(realDrop, buyer1Id, 500, 1200000);
+      expect(bidResult.success).toBe(true);
+      expect(bidResult.drop?.id).toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
+
+      // Valid settlement & order
+      const bids: BidRecord[] = [
+        {
+          id: 'b-real',
+          dropId: realDrop.id,
+          bidderId: buyer1Id,
+          amount: 500,
+          timestamp: 1200000,
+        },
+      ];
+
+      const settleResult = settleAuctionWithOrder(
+        bidResult.drop!,
+        bids,
+        realDrop.endsAt + 1000
+      );
+      expect(settleResult.success).toBe(true);
+      expect(settleResult.settledDrop?.status).toBe('settled');
+      expect(settleResult.order?.dropId).toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
+      expect(settleResult.order?.buyerId).toBe(buyer1Id);
     });
   });
 });

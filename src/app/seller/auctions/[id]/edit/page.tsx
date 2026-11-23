@@ -7,6 +7,7 @@ import Image from 'next/image';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { createClient } from '@/lib/supabase/client';
+import { isValidUuid } from '@/lib/auction/demo-auctions';
 import { MARKETPLACE_CATEGORIES, type AuctionDropRecord, type UserProfile } from '@/types';
 import {
   ArrowLeft,
@@ -78,6 +79,13 @@ export default function EditAuctionPage() {
 
       if (userProfile) {
         setProfile(userProfile as UserProfile);
+      }
+
+      // Invariant: Verify dropId is a valid UUID before database query
+      if (!isValidUuid(dropId)) {
+        setError('Invalid auction listing ID. Editing is only permitted for real database auctions.');
+        setLoading(false);
+        return;
       }
 
       // Fetch drop
@@ -152,6 +160,11 @@ export default function EditAuctionPage() {
   const handleSaveAuction = async (targetStatus?: 'draft' | 'live') => {
     setError(null);
     setSuccessMessage(null);
+
+    if (!isValidUuid(dropId)) {
+      setError('Cannot update a listing with an invalid database ID.');
+      return;
+    }
 
     if (!title.trim() || title.trim().length < 4) {
       setError('Please provide a descriptive title (at least 4 characters).');
@@ -232,6 +245,11 @@ export default function EditAuctionPage() {
 
   // Delete draft handler
   const handleDeleteDraft = async () => {
+    if (!isValidUuid(dropId)) {
+      setError('Cannot delete a listing with an invalid database ID.');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this draft auction?')) {
       return;
     }

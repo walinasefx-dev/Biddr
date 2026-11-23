@@ -8,7 +8,13 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import CountdownTimer from '@/components/CountdownTimer';
 import { createClient } from '@/lib/supabase/client';
-import type { AuctionDropRecord, BidRecordWithBidder, UserProfile } from '@/types';
+import {
+  isValidUuid,
+  isDemoAuctionId,
+  getDemoAuction,
+  getDemoBids,
+} from '@/lib/auction/demo-auctions';
+import type { AuctionDropRecord, BidRecordWithBidder } from '@/types';
 import {
   ShieldCheck,
   Flame,
@@ -21,7 +27,7 @@ import {
   BookmarkCheck,
   AlertCircle,
   CheckCircle2,
-  Share2,
+  Sparkles,
 } from 'lucide-react';
 
 interface AuctionDetailPageProps {
@@ -32,6 +38,9 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
   const { id } = use(params);
   const router = useRouter();
   const supabase = createClient();
+
+  const isDemo = isDemoAuctionId(id);
+  const isReal = isValidUuid(id);
 
   const [drop, setDrop] = useState<AuctionDropRecord | null>(null);
   const [bids, setBids] = useState<BidRecordWithBidder[]>([]);
@@ -54,146 +63,125 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
       setLoading(true);
 
       // Current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       setCurrentUser(user);
 
-      // Check watchlist
-      if (user) {
-        const { data: watchItem } = await supabase
-          .from('watchlist')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('drop_id', id)
-          .maybeSingle();
-        setIsWatched(Boolean(watchItem));
-      }
+      // CASE A: Demo / Showcase Auction (e.g. auc-1 through auc-6)
+      // Completely bypasses Supabase queries to eliminate invalid UUID errors
+      if (isDemo) {
+        const demoDrop = getDemoAuction(id);
+        if (demoDrop) {
+          setDrop(demoDrop);
+          setBidAmount(demoDrop.current_bid + demoDrop.min_increment);
+          setBids(getDemoBids(id));
 
-      // Fetch Drop
-      const { data: dropData, error: dropErr } = await supabase
-        .from('drops')
-        .select(`
-          *,
-          seller:profiles!drops_seller_id_fkey(*)
-        `)
-        .eq('id', id)
-        .maybeSingle();
-
-      if (dropData) {
-        const record: AuctionDropRecord = {
-          ...dropData,
-          images:
-            dropData.images && dropData.images.length > 0
-              ? dropData.images
-              : [dropData.image_url || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1000&q=80'],
-          starting_price: Number(dropData.starting_price),
-          current_bid: Number(dropData.current_bid),
-          min_increment: Number(dropData.min_increment || 5),
-        };
-        setDrop(record);
-
-        // Pre-fill next minimum bid
-        const nextMin =
-          record.bid_count === 0
-            ? record.starting_price
-            : record.current_bid + record.min_increment;
-        setBidAmount(nextMin);
-
-        // Fetch Bids
-        const { data: bidsData } = await supabase
-          .from('bids')
-          .select(`
-            id, drop_id, bidder_id, amount, created_at,
-            bidder:profiles!bids_bidder_id_fkey(username, avatar_url)
-          `)
-          .eq('drop_id', id)
-          .order('amount', { ascending: false })
-          .limit(20);
-
-        if (bidsData) {
-          setBids(bidsData as any);
+          // Check mock watchlist state in browser storage
+          try {
+            if (typeof window !== 'undefined') {
+              const savedWatch = localStorage.getItem(`biddr_watch_${id}`);
+              setIsWatched(Boolean(savedWatch));
+            }
+          } catch {
+            // LocalStorage fallback
+          }
+        } else {
+          setDrop(null);
         }
-      } else {
-        // Fallback for mock demo IDs
-        const mockDrop: AuctionDropRecord = {
-          id,
-          seller_id: 'mock-seller',
-          title: 'Leica M6 Classic 35mm Rangefinder (Black Chrome)',
-          description:
-            'A pristine vintage Leica M6 Rangefinder with 0.72x viewfinder magnification. Flawless shutter speeds across all stops, immaculate light meter calibration, and complete with original presentation box and documentation.',
-          category: 'Electronics & Gadgets',
-          image_url:
-            'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1000&q=80',
-          images: [
-            'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1000&q=80',
-            'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&w=1000&q=80',
-            'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=1000&q=80',
-          ],
-          condition: 'Mint (Condition 9.5/10)',
-          starting_price: 1500,
-          current_bid: 2850,
-          min_increment: 50,
-          bid_count: 34,
-          status: 'live',
-          starts_at: new Date(Date.now() - 3600000).toISOString(),
-          ends_at: new Date(Date.now() + 1000 * 60 * 14).toISOString(),
-          winner_id: null,
-          winning_bid: null,
-          location: 'Tokyo, Japan',
-          shipping_information: 'Worldwide Insured DHL Express (2-4 business days)',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          seller: {
-            id: 'mock-seller',
-            username: 'analogarchive',
-            full_name: 'Analog Archive Co',
-            avatar_url:
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-            bio: 'Curating rare 35mm rangefinders & medium format cameras.',
-            location: 'Tokyo, Japan',
-            is_seller: true,
-            seller_verified: true,
-            created_at: '2026-01-01',
-            updated_at: '2026-01-01',
-          },
-        };
-        setDrop(mockDrop);
-        setBidAmount(mockDrop.current_bid + mockDrop.min_increment);
-
-        setBids([
-          {
-            id: 'b-1',
-            drop_id: id,
-            bidder_id: 'u-1',
-            amount: 2850,
-            created_at: new Date(Date.now() - 60000).toISOString(),
-            bidder: { username: 'tokyovault', avatar_url: null },
-          },
-          {
-            id: 'b-2',
-            drop_id: id,
-            bidder_id: 'u-2',
-            amount: 2800,
-            created_at: new Date(Date.now() - 180000).toISOString(),
-            bidder: { username: 'film_master', avatar_url: null },
-          },
-          {
-            id: 'b-3',
-            drop_id: id,
-            bidder_id: 'u-3',
-            amount: 2750,
-            created_at: new Date(Date.now() - 320000).toISOString(),
-            bidder: { username: 'collector_nyc', avatar_url: null },
-          },
-        ]);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      // CASE B: Invalid Non-UUID string
+      // Gracefully reject without sending malformed strings to PostgreSQL
+      if (!isReal) {
+        setDrop(null);
+        setLoading(false);
+        return;
+      }
+
+      // CASE C: Valid Database UUID
+      // Safe to query Supabase tables and RPC functions
+      try {
+        // Check watchlist
+        if (user) {
+          const { data: watchItem } = await supabase
+            .from('watchlist')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('drop_id', id)
+            .maybeSingle();
+          setIsWatched(Boolean(watchItem));
+        }
+
+        // Fetch Drop
+        const { data: dropData } = await supabase
+          .from('drops')
+          .select(`
+            *,
+            seller:profiles!drops_seller_id_fkey(*)
+          `)
+          .eq('id', id)
+          .maybeSingle();
+
+        if (dropData) {
+          const record: AuctionDropRecord = {
+            ...dropData,
+            images:
+              dropData.images && dropData.images.length > 0
+                ? dropData.images
+                : [
+                    dropData.image_url ||
+                      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1000&q=80',
+                  ],
+            starting_price: Number(dropData.starting_price),
+            current_bid: Number(dropData.current_bid),
+            min_increment: Number(dropData.min_increment || 5),
+          };
+          setDrop(record);
+
+          // Pre-fill next minimum bid
+          const nextMin =
+            record.bid_count === 0
+              ? record.starting_price
+              : record.current_bid + record.min_increment;
+          setBidAmount(nextMin);
+
+          // Fetch Bids
+          const { data: bidsData } = await supabase
+            .from('bids')
+            .select(`
+              id, drop_id, bidder_id, amount, created_at,
+              bidder:profiles!bids_bidder_id_fkey(username, avatar_url)
+            `)
+            .eq('drop_id', id)
+            .order('amount', { ascending: false })
+            .limit(20);
+
+          if (bidsData) {
+            setBids(bidsData as any);
+          }
+        } else {
+          setDrop(null);
+        }
+      } catch (err: any) {
+        setDrop(null);
+      } finally {
+        setLoading(false);
+      }
     }
 
     loadAuctionData();
-  }, [id, supabase]);
+  }, [id, isDemo, isReal, supabase]);
 
-  // 2. Real-Time Bid & Drop Updates
+  // 2. Real-Time Bid & Drop Updates (ONLY for real database UUIDs)
   useEffect(() => {
+    // Only subscribe to Postgres change feeds if this is a valid database UUID
+    if (!isReal) {
+      return;
+    }
+
     const channel = supabase
       .channel(`auction-${id}`)
       .on(
@@ -252,7 +240,7 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, supabase]);
+  }, [id, isReal, supabase]);
 
   // 3. Handle Placing Bid
   const handlePlaceBid = async (e: React.FormEvent) => {
@@ -269,9 +257,7 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
     if (!drop) return;
 
     const minRequired =
-      drop.bid_count === 0
-        ? drop.starting_price
-        : drop.current_bid + drop.min_increment;
+      drop.bid_count === 0 ? drop.starting_price : drop.current_bid + drop.min_increment;
 
     if (bidAmount < minRequired) {
       setBidError(`Minimum valid bid is $${minRequired.toLocaleString()}`);
@@ -280,8 +266,50 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
 
     setIsPlacingBid(true);
 
+    // CASE A: Demo / Showcase mode
+    // Simulate bid placement without querying Supabase
+    if (isDemo) {
+      setTimeout(() => {
+        setDrop((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            current_bid: bidAmount,
+            bid_count: prev.bid_count + 1,
+          };
+        });
+
+        const newSimulatedBid: BidRecordWithBidder = {
+          id: `demo-bid-${Date.now()}`,
+          drop_id: id,
+          bidder_id: currentUser.id,
+          amount: bidAmount,
+          created_at: new Date().toISOString(),
+          bidder: {
+            username: currentUser.email?.split('@')[0] || 'collector',
+            avatar_url: null,
+          },
+        };
+
+        setBids((prev) => [newSimulatedBid, ...prev]);
+        setBidSuccess(
+          `Demo bid of $${bidAmount.toLocaleString()} placed! (Showcase simulation mode)`
+        );
+        setBidAmount(bidAmount + drop.min_increment);
+        setIsPlacingBid(false);
+      }, 350);
+      return;
+    }
+
+    // CASE B: Reject non-UUIDs before database RPC
+    if (!isReal) {
+      setBidError('Cannot place bid on an invalid auction ID.');
+      setIsPlacingBid(false);
+      return;
+    }
+
+    // CASE C: Real Database UUID -> Call atomic place_bid RPC
     try {
-      // Call atomic place_bid RPC procedure
       const { data, error } = await supabase.rpc('place_bid', {
         p_drop_id: drop.id,
         p_amount: bidAmount,
@@ -327,6 +355,25 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
       return;
     }
 
+    // Demo Mode Watchlist Toggle (Local Storage Only)
+    if (isDemo) {
+      const nextWatched = !isWatched;
+      setIsWatched(nextWatched);
+      try {
+        if (nextWatched) {
+          localStorage.setItem(`biddr_watch_${id}`, '1');
+        } else {
+          localStorage.removeItem(`biddr_watch_${id}`);
+        }
+      } catch {
+        // LocalStorage fallback
+      }
+      return;
+    }
+
+    // Reject non-UUIDs
+    if (!isReal) return;
+
     setWatchLoading(true);
     try {
       if (isWatched) {
@@ -337,9 +384,7 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
           .eq('drop_id', id);
         setIsWatched(false);
       } else {
-        await supabase
-          .from('watchlist')
-          .insert({ user_id: currentUser.id, drop_id: id });
+        await supabase.from('watchlist').insert({ user_id: currentUser.id, drop_id: id });
         setIsWatched(true);
       }
     } catch {
@@ -352,6 +397,13 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
   // 5. Handle Timer Expiration
   const handleAuctionFinished = async () => {
     if (drop && drop.status === 'live') {
+      if (isDemo) {
+        setDrop((prev) => (prev ? { ...prev, status: 'sold' } : null));
+        return;
+      }
+
+      if (!isReal) return;
+
       try {
         const { data } = await supabase.rpc('settle_auction', { p_drop_id: drop.id });
         if (data) {
@@ -363,7 +415,7 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
     }
   };
 
-  if (loading || !drop) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background text-primaryText flex flex-col">
         <Navbar />
@@ -377,8 +429,37 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
     );
   }
 
+  // Graceful Auction Not Found state for invalid IDs
+  if (!drop) {
+    return (
+      <div className="min-h-screen bg-background text-primaryText flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="max-w-md w-full rounded-3xl border border-surface-border bg-surface p-8 text-center shadow-2xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-coral/10 text-coral border border-coral/30 mb-6">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-tight">Auction Not Found</h1>
+            <p className="mt-3 text-xs sm:text-sm text-secondaryText leading-relaxed">
+              The listing you are looking for does not exist or may have been concluded.
+            </p>
+            <div className="mt-8 pt-6 border-t border-surface-border">
+              <Link
+                href="/auctions"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-lime px-6 py-3 text-xs font-bold text-black hover:bg-lime-hover shadow-glow transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Browse Live Marketplace Drops</span>
+              </Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   const isLive = drop.status === 'live';
-  const isEnded = ['ended', 'settled', 'sold', 'unsold'].includes(drop.status);
   const minRequiredBid =
     drop.bid_count === 0 ? drop.starting_price : drop.current_bid + drop.min_increment;
 
@@ -394,7 +475,7 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
             className="inline-flex items-center gap-2 text-xs font-bold text-secondaryText hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Marketplace
+            <span>Back to Marketplace</span>
           </Link>
 
           <div className="flex items-center gap-3">
@@ -421,6 +502,24 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
             </button>
           </div>
         </div>
+
+        {/* Demo Showcase Notice Banner */}
+        {isDemo && (
+          <div className="mb-6 rounded-2xl border border-lime/30 bg-lime/10 px-4 py-3 flex items-center justify-between text-xs text-lime animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-lime flex-shrink-0" />
+              <span className="font-extrabold uppercase tracking-wide">
+                Interactive Showcase Drop
+              </span>
+              <span className="text-secondaryText hidden sm:inline">
+                • Safe simulation mode (database queries bypassed)
+              </span>
+            </div>
+            <span className="text-[11px] font-mono text-secondaryText bg-surface px-2 py-0.5 rounded-md border border-surface-border">
+              Demo ID: {id}
+            </span>
+          </div>
+        )}
 
         {/* 2-Column Product & Bidding Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
@@ -603,7 +702,8 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
                 <div className="mt-4 rounded-2xl border border-coral/40 bg-coral/10 p-3.5 text-xs text-coral flex items-center gap-2.5 animate-pulse">
                   <Zap className="w-5 h-5 flex-shrink-0" />
                   <span>
-                    <strong>Anti-Sniping Rule Active:</strong> The countdown has been extended by 10s to give bidders a fair response window!
+                    <strong>Anti-Sniping Rule Active:</strong> The countdown has been extended by
+                    10s to give bidders a fair response window!
                   </span>
                 </div>
               )}
@@ -629,7 +729,9 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
                   <div>
                     <div className="flex items-center justify-between mb-1.5 text-xs font-bold">
                       <span className="text-secondaryText">Your Offer ($ USD)</span>
-                      <span className="text-lime">Min next: ${minRequiredBid.toLocaleString()}</span>
+                      <span className="text-lime">
+                        Min next: ${minRequiredBid.toLocaleString()}
+                      </span>
                     </div>
 
                     <div className="relative">
@@ -650,18 +752,20 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
 
                   {/* Quick Bid Increment Buttons */}
                   <div className="grid grid-cols-3 gap-2">
-                    {[minRequiredBid, minRequiredBid + drop.min_increment * 2, minRequiredBid + drop.min_increment * 5].map(
-                      (preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setBidAmount(preset)}
-                          className="rounded-xl border border-surface-border bg-surface-hover py-2 text-xs font-bold text-secondaryText hover:text-white hover:border-lime/40 transition-all"
-                        >
-                          ${preset.toLocaleString()}
-                        </button>
-                      )
-                    )}
+                    {[
+                      minRequiredBid,
+                      minRequiredBid + drop.min_increment * 2,
+                      minRequiredBid + drop.min_increment * 5,
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setBidAmount(preset)}
+                        className="rounded-xl border border-surface-border bg-surface-hover py-2 text-xs font-bold text-secondaryText hover:text-white hover:border-lime/40 transition-all"
+                      >
+                        ${preset.toLocaleString()}
+                      </button>
+                    ))}
                   </div>
 
                   <button
@@ -680,7 +784,9 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
                   </button>
 
                   <div className="text-center text-[11px] text-secondaryText/80 pt-1">
-                    Bids are legally binding and processed atomically on server.
+                    {isDemo
+                      ? 'Showcase preview mode • Safe simulation.'
+                      : 'Bids are legally binding and processed atomically on server.'}
                   </div>
                 </form>
               ) : (
@@ -704,7 +810,9 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
                   <History className="w-4 h-4 text-lime" />
                   <span>Real-Time Bid Log</span>
                 </div>
-                <span className="text-xs text-secondaryText font-mono">{bids.length} recorded</span>
+                <span className="text-xs text-secondaryText font-mono">
+                  {bids.length} recorded
+                </span>
               </div>
 
               <div className="mt-4 divide-y divide-surface-border max-h-72 overflow-y-auto scrollbar-none">
