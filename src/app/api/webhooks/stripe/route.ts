@@ -104,8 +104,8 @@ export async function POST(request: Request) {
             {
               user_id: buyerId,
               type: 'payment_confirmed',
-              title: 'Payment Confirmed — Escrow Secured',
-              message: `Your payment of $${amount.toLocaleString()} was confirmed via Stripe. Funds are held in escrow.`,
+              title: 'Payment Confirmed — Buyer Protection Active',
+              message: `Your payment of $${amount.toLocaleString()} was confirmed via Stripe. Funds are held under Biddr Buyer Protection.`,
               link_url: `/orders/${orderId}`,
               created_at: now,
             },

@@ -87,8 +87,8 @@ export function PaymentModal({
         {
           user_id: buyerId,
           type: 'payment_confirmed',
-          title: 'Payment Confirmed — Escrow Secured',
-          message: `Your payment of $${amount.toLocaleString()} for "${itemTitle}" was confirmed. Funds are safely held in escrow until delivery.`,
+          title: 'Payment Confirmed — Buyer Protection Active',
+          message: `Your payment of $${amount.toLocaleString()} for "${itemTitle}" was confirmed. Funds are held under Biddr Buyer Protection until delivery.`,
           link_url: `/orders/${orderId}`,
         },
         {

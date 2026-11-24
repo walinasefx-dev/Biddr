@@ -105,7 +105,7 @@ export default function BuyerOrderDetailPage({ params }: BuyerOrderDetailProps) 
               }
             : null
         );
-        setActionSuccess('Delivery confirmed! Escrow funds have been released to the seller.');
+        setActionSuccess('Delivery confirmed! Payment released to the seller.');
       }
     } catch {
       // Handled
@@ -259,7 +259,7 @@ export default function BuyerOrderDetailPage({ params }: BuyerOrderDetailProps) 
         {/* Order Status Timeline Card */}
         <div className="rounded-3xl border border-surface-border bg-surface p-6 sm:p-8 shadow-2xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-surface-border">
-            <h2 className="text-base font-bold text-white">Order Progress & Escrow Status</h2>
+            <h2 className="text-base font-bold text-white">Order Progress & Payment Status</h2>
             <div className="text-xs text-secondaryText">
               Placed on {new Date(order.created_at).toLocaleString()}
             </div>
@@ -275,9 +275,9 @@ export default function BuyerOrderDetailPage({ params }: BuyerOrderDetailProps) 
               <div className="flex items-start gap-3">
                 <Clock className="w-5 h-5 text-coral flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-white">Payment Required to Finalize Escrow</h4>
+                  <h4 className="text-sm font-bold text-white">Payment Required to Finalize Order</h4>
                   <p className="text-xs text-secondaryText mt-0.5">
-                    Please authorize payment. Your funds are secured by Biddr Escrow until you receive and inspect your item.
+                    Please authorize payment. Your funds are protected by Biddr Buyer Protection until you receive and inspect your item.
                   </p>
                 </div>
               </div>
@@ -582,7 +582,7 @@ export default function BuyerOrderDetailPage({ params }: BuyerOrderDetailProps) 
                   }
                 : null
             );
-            setActionSuccess('Payment confirmed! Funds secured in Biddr Escrow.');
+            setActionSuccess('Payment confirmed! Funds secured under Biddr Buyer Protection.');
           }}
         />
       )}

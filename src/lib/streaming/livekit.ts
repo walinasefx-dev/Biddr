@@ -63,8 +63,14 @@ export class LiveKitStreamingService {
     const now = Math.floor(Date.now() / 1000);
     const ttl = options.ttlSeconds || 6 * 3600; // 6 hours default
 
-    // If API credentials are not set, return simulated token for local test harness
+    // If API credentials are not set: fail closed in production, or return simulated token for local test harness
     if (!key || !secret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'LiveKit credentials missing: LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be configured in production'
+        );
+      }
+
       const simulatedPayload = {
         iss: 'simulated_biddr_key',
         sub: options.participantIdentity,
