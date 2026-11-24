@@ -20,6 +20,7 @@ import {
   Tag,
   DollarSign,
   Package,
+  Video,
 } from 'lucide-react';
 
 export default function SellerDashboardPage() {
@@ -227,13 +228,31 @@ export default function SellerDashboardPage() {
             </p>
           </div>
 
-          <Link
-            href="/seller/auctions/new"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-lime px-6 py-3.5 text-xs font-extrabold text-black hover:bg-lime-hover hover:shadow-glow transition-all active:scale-95 self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Auction</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+            <Link
+              href="/seller/sessions"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-surface-border bg-surface px-5 py-3.5 text-xs font-bold text-white hover:border-lime/50 transition-all"
+            >
+              <Video className="w-4 h-4 text-coral" />
+              <span>Live Shows & Catalogues</span>
+            </Link>
+
+            <Link
+              href="/seller/orders"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-surface-border bg-surface px-5 py-3.5 text-xs font-bold text-white hover:border-lime/50 transition-all"
+            >
+              <Package className="w-4 h-4 text-lime" />
+              <span>Orders & Fulfillment</span>
+            </Link>
+
+            <Link
+              href="/seller/auctions/new"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-lime px-6 py-3.5 text-xs font-extrabold text-black hover:bg-lime-hover hover:shadow-glow transition-all active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Auction</span>
+            </Link>
+          </div>
         </div>
 
         {/* Action Toast Feedback */}

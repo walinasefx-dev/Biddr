@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Flame,
   ArrowLeft,
+  ArrowRight,
   Zap,
   MapPin,
   Package,
@@ -796,6 +797,24 @@ export default function AuctionDetailPage({ params }: AuctionDetailPageProps) {
                     </div>
                   ) : (
                     <div className="mt-2 text-sm text-secondaryText">No bids were placed.</div>
+                  )}
+
+                  {currentUser && drop.winner_id === currentUser.id && (
+                    <div className="mt-5 pt-4 border-t border-surface-border rounded-xl bg-lime/10 border border-lime/30 p-4">
+                      <div className="text-sm font-black text-lime">
+                        🎉 Congratulations, You Won This Auction!
+                      </div>
+                      <p className="text-xs text-secondaryText mt-1">
+                        Your order has been generated and is awaiting escrow payment.
+                      </p>
+                      <Link
+                        href="/orders"
+                        className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-full bg-lime px-5 py-2.5 text-xs font-black text-black hover:bg-lime-hover shadow-glow"
+                      >
+                        <span>View Order & Finalize Escrow</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
                   )}
                 </div>
               )}

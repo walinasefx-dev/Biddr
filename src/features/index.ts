@@ -3,3 +3,7 @@ export * from './auctions';
 export * from './bidding';
 export * from './watchlist';
 export * from './orders';
+export * from './payments';
+export * from './notifications';
+export * from './trust';
+export * from './sessions';

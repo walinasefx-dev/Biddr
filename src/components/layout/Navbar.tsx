@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Menu, X, Flame, Sparkles, User, ArrowRight, LogOut } from 'lucide-react';
+import { Menu, X, Flame, Sparkles, User, ArrowRight, LogOut, Bell, ShoppingBag } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function Navbar() {
@@ -16,6 +16,7 @@ export default function Navbar() {
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   useEffect(() => {
     // 1. Fetch initial user session
@@ -36,12 +37,24 @@ export default function Navbar() {
         } else {
           setUsername(user.email?.split('@')[0] || 'collector');
         }
+
+        // Fetch unread notifications count
+        try {
+          const { count } = await supabase
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('read', false);
+          setUnreadCount(count || 0);
+        } catch {
+          // Handled
+        }
       }
     }
 
     loadUser();
 
-    // 2. Listen for auth changes (login, logout, token refresh)
+    // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         const user = session?.user ?? null;
@@ -63,12 +76,26 @@ export default function Navbar() {
         } else {
           setUsername(null);
           setAvatarUrl(null);
+          setUnreadCount(0);
         }
       }
     );
 
+    // 3. Realtime notifications subscription
+    const notifChannel = supabase
+      .channel('navbar-notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        () => {
+          setUnreadCount((prev) => prev + 1);
+        }
+      )
+      .subscribe();
+
     return () => {
       subscription.unsubscribe();
+      supabase.removeChannel(notifChannel);
     };
   }, [supabase]);
 
@@ -77,6 +104,7 @@ export default function Navbar() {
     setCurrentUser(null);
     setUsername(null);
     setAvatarUrl(null);
+    setUnreadCount(0);
     router.push('/');
     router.refresh();
   };
@@ -126,14 +154,39 @@ export default function Navbar() {
         </nav>
 
         {/* Right CTA Actions: Dynamic based on auth state */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-3">
           {currentUser ? (
             <div className="flex items-center gap-3">
+              {/* My Orders */}
+              <Link
+                href="/orders"
+                className="inline-flex items-center gap-1.5 rounded-full border border-surface-border bg-surface px-3.5 py-2 text-xs font-bold text-secondaryText hover:text-white hover:border-lime/40 transition-all"
+                title="My Orders & Purchases"
+              >
+                <ShoppingBag className="w-3.5 h-3.5 text-lime" />
+                <span>Orders</span>
+              </Link>
+
+              {/* Notifications Bell */}
+              <Link
+                href="/notifications"
+                className="relative inline-flex items-center justify-center rounded-full p-2 text-secondaryText hover:text-white hover:bg-surface-hover border border-surface-border transition-colors"
+                title="Notifications & Activity"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] font-black text-white shadow-coral-glow">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+
+              {/* User Profile Pill */}
               <Link
                 href="/profile"
-                className="inline-flex items-center gap-2.5 rounded-full border border-surface-border bg-surface px-4 py-2 text-xs font-bold text-white hover:border-lime/50 transition-all"
+                className="inline-flex items-center gap-2.5 rounded-full border border-surface-border bg-surface px-3.5 py-2 text-xs font-bold text-white hover:border-lime/50 transition-all"
               >
-                <div className="relative h-6 w-6 rounded-full overflow-hidden border border-lime flex-shrink-0">
+                <div className="relative h-5 w-5 rounded-full overflow-hidden border border-lime flex-shrink-0">
                   <Image
                     src={
                       avatarUrl ||
@@ -146,6 +199,8 @@ export default function Navbar() {
                 </div>
                 <span>@{username || 'profile'}</span>
               </Link>
+
+              {/* Sign Out Button */}
               <button
                 onClick={handleSignOut}
                 className="inline-flex items-center justify-center rounded-full p-2 text-secondaryText hover:text-coral hover:bg-surface-hover border border-surface-border transition-colors"
@@ -219,6 +274,33 @@ export default function Navbar() {
               <Sparkles className="w-5 h-5 text-lime" />
               Seller Studio
             </Link>
+            {currentUser && (
+              <>
+                <Link
+                  href="/orders"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
+                >
+                  <ShoppingBag className="w-5 h-5 text-lime" />
+                  My Purchases & Orders
+                </Link>
+                <Link
+                  href="/notifications"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
+                >
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-5 h-5 text-coral" />
+                    <span>Notifications</span>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-coral px-2 py-0.5 text-xs font-black text-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Link>
+              </>
+            )}
           </nav>
 
           <div className="pt-4 border-t border-surface-border flex flex-col gap-3">
