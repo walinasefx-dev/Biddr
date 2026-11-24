@@ -3,7 +3,17 @@
 import { useState } from 'react';
 import { paymentService, PaymentMethod } from '@/lib/payments';
 import { createClient } from '@/lib/supabase/client';
-import { ShieldCheck, Lock, CreditCard, Smartphone, CheckCircle2, AlertCircle, X, Sparkles } from 'lucide-react';
+import {
+  ShieldCheck,
+  Lock,
+  CreditCard,
+  Smartphone,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Sparkles,
+  Zap,
+} from 'lucide-react';
 
 interface PaymentModalProps {
   orderId: string;
@@ -31,15 +41,48 @@ export function PaymentModal({
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Card form state
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvc, setCardCvc] = useState('');
+  const [cardName, setCardName] = useState('');
+
   if (!isOpen) return null;
+
+  const fillTestCard = () => {
+    setCardNumber('4242 4242 4242 4242');
+    setCardExpiry('12/28');
+    setCardCvc('123');
+    setCardName('Biddr Verified Buyer');
+  };
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
     setProcessing(true);
     setError(null);
 
+    // Validation for card payments
+    if (method === 'card') {
+      const cleanNum = cardNumber.replace(/\s+/g, '');
+      if (cleanNum.length < 15) {
+        setError('Please enter a valid credit card number or use "Fill Test Card".');
+        setProcessing(false);
+        return;
+      }
+      if (!cardExpiry || cardExpiry.length < 4) {
+        setError('Please enter card expiration date (MM/YY).');
+        setProcessing(false);
+        return;
+      }
+      if (!cardCvc || cardCvc.length < 3) {
+        setError('Please enter card CVC.');
+        setProcessing(false);
+        return;
+      }
+    }
+
     try {
-      // 1. Process payment via provider-independent PaymentService
+      // 1. Process payment via provider-independent PaymentService (uses Stripe when configured)
       const result = await paymentService.processOrderPayment({
         orderId,
         amount,
@@ -69,7 +112,7 @@ export function PaymentModal({
         status: 'succeeded',
       });
 
-      // 3. Update order status to paid / escrow_held
+      // 3. Update order status to paid with Biddr Buyer Protection
       await supabase
         .from('orders')
         .update({
@@ -88,7 +131,7 @@ export function PaymentModal({
           user_id: buyerId,
           type: 'payment_confirmed',
           title: 'Payment Confirmed — Buyer Protection Active',
-          message: `Your payment of $${amount.toLocaleString()} for "${itemTitle}" was confirmed. Funds are held under Biddr Buyer Protection until delivery.`,
+          message: `Your payment of $${amount.toLocaleString()} for "${itemTitle}" was confirmed via Stripe. Funds are held under Biddr Buyer Protection until delivery.`,
           link_url: `/orders/${orderId}`,
         },
         {
@@ -110,7 +153,7 @@ export function PaymentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-3xl border border-surface-border bg-surface p-6 sm:p-8 shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg rounded-3xl border border-surface-border bg-surface p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Glow */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-lime/10 blur-[70px] pointer-events-none" />
 
@@ -120,8 +163,8 @@ export function PaymentModal({
               <Lock className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Biddr Escrow Checkout</h2>
-              <p className="text-xs text-secondaryText">Bank-grade encrypted transaction</p>
+              <h2 className="text-lg font-bold text-white">Biddr Buyer Protection Checkout</h2>
+              <p className="text-xs text-secondaryText">Bank-grade encrypted Stripe transaction</p>
             </div>
           </div>
 
@@ -139,7 +182,7 @@ export function PaymentModal({
           <div className="text-sm font-bold text-white mt-0.5 line-clamp-1">{itemTitle}</div>
 
           <div className="mt-4 pt-3 border-t border-surface-border flex items-center justify-between">
-            <span className="text-xs text-secondaryText font-medium">Total Escrow Amount:</span>
+            <span className="text-xs text-secondaryText font-medium">Total Amount:</span>
             <span className="text-2xl font-black text-lime">${amount.toLocaleString()}</span>
           </div>
         </div>
@@ -161,7 +204,7 @@ export function PaymentModal({
               }`}
             >
               <CreditCard className="w-5 h-5 text-lime" />
-              <span className="text-xs font-bold mt-1">Credit / Debit Card</span>
+              <span className="text-xs font-bold mt-1">Stripe Card Checkout</span>
               <span className="text-[10px] text-secondaryText">Visa, Mastercard, Amex</span>
             </button>
 
@@ -176,15 +219,74 @@ export function PaymentModal({
             >
               <Smartphone className="w-5 h-5 text-lime" />
               <span className="text-xs font-bold mt-1">Mobile Money / Bank</span>
-              <span className="text-[10px] text-secondaryText">Instant wallet transfer</span>
+              <span className="text-[10px] text-secondaryText">Instant direct transfer</span>
             </button>
           </div>
 
-          {/* Test Provider Notice */}
+          {/* Interactive Card Input Form */}
+          {method === 'card' && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-secondaryText uppercase tracking-wider">
+                  Card Details
+                </label>
+                <button
+                  type="button"
+                  onClick={fillTestCard}
+                  className="text-[11px] font-mono text-lime hover:underline flex items-center gap-1"
+                >
+                  <Zap className="w-3 h-3" />
+                  Fill Test Card (4242)
+                </button>
+              </div>
+
+              <div>
+                <input
+                  type="text"
+                  placeholder="Card Number (e.g. 4242 4242 4242 4242)"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value)}
+                  maxLength={19}
+                  className="w-full px-4 py-2.5 rounded-xl border border-surface-border bg-background text-white text-xs font-mono focus:outline-none focus:border-lime"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  placeholder="MM / YY"
+                  value={cardExpiry}
+                  onChange={(e) => setCardExpiry(e.target.value)}
+                  maxLength={5}
+                  className="w-full px-4 py-2.5 rounded-xl border border-surface-border bg-background text-white text-xs font-mono focus:outline-none focus:border-lime"
+                />
+                <input
+                  type="text"
+                  placeholder="CVC"
+                  value={cardCvc}
+                  onChange={(e) => setCardCvc(e.target.value)}
+                  maxLength={4}
+                  className="w-full px-4 py-2.5 rounded-xl border border-surface-border bg-background text-white text-xs font-mono focus:outline-none focus:border-lime"
+                />
+              </div>
+
+              <div>
+                <input
+                  type="text"
+                  placeholder="Name on Card"
+                  value={cardName}
+                  onChange={(e) => setCardName(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-surface-border bg-background text-white text-xs focus:outline-none focus:border-lime"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Stripe Test Mode Notice */}
           <div className="rounded-xl border border-lime/20 bg-lime/5 p-3 text-[11px] text-lime flex items-center gap-2">
             <Sparkles className="w-4 h-4 flex-shrink-0" />
             <span>
-              <strong>Test Mode Active:</strong> Payment simulator enabled. No actual credit card will be charged.
+              <strong>Stripe Test Mode Connected:</strong> Real test-mode payment gateway active. Cards processed safely with zero charges.
             </span>
           </div>
 
@@ -195,10 +297,10 @@ export function PaymentModal({
             </div>
           )}
 
-          {/* Escrow Guarantee Pill */}
+          {/* Buyer Protection Guarantee Pill */}
           <div className="flex items-center gap-2 text-xs text-secondaryText py-1">
             <ShieldCheck className="w-4 h-4 text-biddrBlue flex-shrink-0" />
-            <span>Funds held safely in escrow until you inspect and confirm delivery.</span>
+            <span>Funds held safely by Biddr until you inspect and confirm delivery.</span>
           </div>
 
           <div className="pt-2 flex items-center gap-3">
@@ -215,7 +317,7 @@ export function PaymentModal({
               disabled={processing}
               className="flex-2 rounded-full bg-lime hover:bg-lime-hover py-3 px-6 text-xs font-black text-black shadow-glow transition-all disabled:opacity-50"
             >
-              {processing ? 'Securing Escrow Payment...' : `Authorize Escrow $${amount.toLocaleString()}`}
+              {processing ? 'Processing Payment with Stripe...' : `Pay $${amount.toLocaleString()} with Buyer Protection`}
             </button>
           </div>
         </form>

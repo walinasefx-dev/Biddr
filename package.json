@@ -1,4 +1,3 @@
-
 {
   "name": "biddr",
   "version": "0.1.0",
@@ -11,9 +10,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^10.4.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.48.1",
     "clsx": "^2.1.1",
+    "livekit-client": "^2.25.0",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
     "react": "^19.0.0",

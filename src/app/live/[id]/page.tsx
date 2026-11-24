@@ -68,6 +68,9 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
   const [isDemo, setIsDemo] = useState(false);
   const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
   const [isLiveKitActive, setIsLiveKitActive] = useState(false);
+  const [hasRemoteTrack, setHasRemoteTrack] = useState(false);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const livekitRoomRef = useRef<any>(null);
 
   // 1. Fetch Session, Lots, and Current User
   useEffect(() => {
@@ -168,6 +171,75 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
 
     loadRoomData();
   }, [id, supabase]);
+
+  // LiveKit WebRTC Subscriber Connection
+  useEffect(() => {
+    if (!liveKitToken || typeof window === 'undefined') return;
+
+    let room: any = null;
+
+    async function connectLiveKit() {
+      try {
+        const { Room, RoomEvent } = await import('livekit-client');
+        const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || 'wss://biddr-f9j6520c.livekit.cloud';
+
+        room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+        });
+        livekitRoomRef.current = room;
+
+        room.on(RoomEvent.TrackSubscribed, (track: any) => {
+          if (track.kind === 'video' && remoteVideoRef.current) {
+            track.attach(remoteVideoRef.current);
+            setHasRemoteTrack(true);
+          }
+          if (track.kind === 'audio') {
+            const audioElement = track.attach();
+            audioElement.muted = isMuted;
+            audioElement.setAttribute('data-livekit-audio', 'true');
+            document.body.appendChild(audioElement);
+          }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track: any) => {
+          track.detach();
+          if (track.kind === 'video') {
+            setHasRemoteTrack(false);
+          }
+        });
+
+        room.on(RoomEvent.Disconnected, () => {
+          setHasRemoteTrack(false);
+        });
+
+        await room.connect(wsUrl, liveKitToken);
+      } catch (err) {
+        console.warn('LiveKit subscriber connection error:', err);
+      }
+    }
+
+    connectLiveKit();
+
+    return () => {
+      if (room) {
+        try {
+          room.disconnect();
+        } catch {}
+      }
+      document.querySelectorAll('audio[data-livekit-audio="true"]').forEach((el) => el.remove());
+    };
+  }, [liveKitToken]);
+
+  // Sync mute state with attached audio elements
+  useEffect(() => {
+    document.querySelectorAll<HTMLAudioElement>('audio[data-livekit-audio="true"]').forEach((el) => {
+      el.muted = isMuted;
+    });
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
 
   // Demo Fallback Setup
   const setupDemoSession = (user: any) => {
@@ -680,8 +752,23 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
               {/* Broadcast Container Notice */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/60 pointer-events-none z-10" />
 
-              {/* Dynamic Video Visuals / Simulated Stream Canvas */}
-              <div className="absolute inset-0 flex items-center justify-center">
+              {/* Actual LiveKit Remote WebRTC Video Feed */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                muted={isMuted}
+                className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${
+                  hasRemoteTrack ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+              />
+
+              {/* Dynamic Video Visuals / Simulated Stream Canvas Fallback */}
+              <div
+                className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ${
+                  hasRemoteTrack ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                }`}
+              >
                 <div className="text-center space-y-3 z-0">
                   <div className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-surface/40 backdrop-blur-md border border-white/10 text-coral">
                     <Radio className="w-10 h-10 animate-pulse" />
@@ -727,8 +814,8 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
                     </span>
                   )}
                   <span className="rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-[10px] font-mono text-white/90 hidden sm:inline-flex items-center gap-1.5">
-                    <span className={`h-1.5 w-1.5 rounded-full ${isLiveKitActive ? 'bg-lime' : 'bg-biddrBlue'}`} />
-                    {isLiveKitActive ? 'LiveKit Cloud CDN Stream' : 'Low-Latency WebRTC Stream'}
+                    <span className={`h-1.5 w-1.5 rounded-full ${hasRemoteTrack ? 'bg-lime animate-ping' : isLiveKitActive ? 'bg-lime' : 'bg-biddrBlue'}`} />
+                    {hasRemoteTrack ? 'LiveKit Cloud Stream Active' : isLiveKitActive ? 'LiveKit Cloud CDN Connected' : 'Low-Latency WebRTC Stream'}
                   </span>
                 </div>
 

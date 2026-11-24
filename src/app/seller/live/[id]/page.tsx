@@ -48,6 +48,8 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
 
   // Studio hardware state (Camera / Mic)
   const videoRef = useRef<HTMLVideoElement>(null);
+  const livekitRoomRef = useRef<any>(null);
+  const localTracksRef = useRef<any[]>([]);
   const [cameraActive, setCameraActive] = useState(false);
   const [micActive, setMicActive] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
@@ -55,6 +57,8 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
   // LiveKit WebRTC Streaming Ingest State
   const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
   const [isLiveKitConfigured, setIsLiveKitConfigured] = useState<boolean>(false);
+  const [isLiveKitStreaming, setIsLiveKitStreaming] = useState<boolean>(false);
+  const [isConnectingLiveKit, setIsConnectingLiveKit] = useState<boolean>(false);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -170,9 +174,41 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
     };
   }, [id, supabase]);
 
-  // 3. WebCam Video Stream Toggle
+  // Unmount cleanup for LiveKit Room and Media Tracks
+  useEffect(() => {
+    return () => {
+      if (livekitRoomRef.current) {
+        try {
+          livekitRoomRef.current.disconnect();
+        } catch {}
+      }
+      localTracksRef.current.forEach((t) => {
+        try {
+          t.stop();
+        } catch {}
+      });
+    };
+  }, []);
+
+  // 3. WebCam Video Stream Toggle with LiveKit Cloud Publishing
   const toggleCamera = async () => {
     if (cameraActive) {
+      if (livekitRoomRef.current) {
+        try {
+          await livekitRoomRef.current.disconnect();
+        } catch {}
+        livekitRoomRef.current = null;
+      }
+
+      if (localTracksRef.current.length > 0) {
+        localTracksRef.current.forEach((track) => {
+          try {
+            track.stop();
+          } catch {}
+        });
+        localTracksRef.current = [];
+      }
+
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach((track) => track.stop());
@@ -180,9 +216,47 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
       }
       setCameraActive(false);
       setMicActive(false);
+      setIsLiveKitStreaming(false);
     } else {
       try {
         setStreamError(null);
+        setIsConnectingLiveKit(true);
+
+        // Attempt LiveKit WebRTC Cloud Broadcast
+        if (liveKitToken && typeof window !== 'undefined') {
+          try {
+            const { Room, createLocalTracks } = await import('livekit-client');
+            const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || 'wss://biddr-f9j6520c.livekit.cloud';
+
+            const room = new Room({
+              adaptiveStream: true,
+              dynacast: true,
+            });
+
+            await room.connect(wsUrl, liveKitToken);
+            livekitRoomRef.current = room;
+
+            const tracks = await createLocalTracks({ video: true, audio: true });
+            localTracksRef.current = tracks;
+
+            for (const track of tracks) {
+              if (track.kind === 'video' && videoRef.current) {
+                track.attach(videoRef.current);
+              }
+              await room.localParticipant.publishTrack(track);
+            }
+
+            setCameraActive(true);
+            setMicActive(true);
+            setIsLiveKitStreaming(true);
+            setIsConnectingLiveKit(false);
+            return;
+          } catch (lkErr: any) {
+            console.warn('LiveKit Cloud connection fallback to local camera preview:', lkErr);
+          }
+        }
+
+        // Fallback to local MediaDevices
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
@@ -194,6 +268,8 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
         setMicActive(true);
       } catch (err: any) {
         setStreamError('Camera permission denied or camera not found on this device.');
+      } finally {
+        setIsConnectingLiveKit(false);
       }
     }
   };
@@ -303,9 +379,15 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
                     PAUSED
                   </span>
                 )}
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border border-surface-border bg-surface text-secondaryText">
-                  <span className={`h-1.5 w-1.5 rounded-full ${isLiveKitConfigured ? 'bg-lime' : 'bg-biddrBlue'}`} />
-                  {isLiveKitConfigured ? 'LiveKit Cloud CDN Ingest' : 'WebRTC Broadcast Pipeline'}
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border border-surface-border bg-surface text-secondaryText">
+                  <span className={`h-1.5 w-1.5 rounded-full ${isLiveKitStreaming ? 'bg-lime animate-ping' : isLiveKitConfigured ? 'bg-lime' : 'bg-biddrBlue'}`} />
+                  {isConnectingLiveKit
+                    ? 'Connecting to LiveKit...'
+                    : isLiveKitStreaming
+                    ? 'LiveKit Cloud Streaming LIVE'
+                    : isLiveKitConfigured
+                    ? 'LiveKit Cloud Ready'
+                    : 'WebRTC Broadcast Pipeline'}
                 </span>
               </div>
               <p className="text-xs text-secondaryText">
