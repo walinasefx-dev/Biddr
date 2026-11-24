@@ -230,6 +230,14 @@ export default function SellerDashboardPage() {
 
           <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
             <Link
+              href="/seller/payouts"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-surface-border bg-surface px-5 py-3.5 text-xs font-bold text-white hover:border-lime/50 transition-all"
+            >
+              <DollarSign className="w-4 h-4 text-lime" />
+              <span>Stripe Payouts</span>
+            </Link>
+
+            <Link
               href="/seller/sessions"
               className="inline-flex items-center justify-center gap-2 rounded-full border border-surface-border bg-surface px-5 py-3.5 text-xs font-bold text-white hover:border-lime/50 transition-all"
             >

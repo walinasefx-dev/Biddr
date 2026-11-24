@@ -157,6 +157,50 @@ export class StripeConnectService {
   }
 
   /**
+   * Executes a direct transfer to a connected Stripe Express account with idempotency
+   */
+  async executeDirectTransfer(params: {
+    amountInCents: number;
+    destinationAccountId: string;
+    orderId: string;
+    idempotencyKey?: string;
+  }): Promise<{ success: boolean; transferId?: string; error?: string }> {
+    if (!this.apiKey) {
+      return { success: false, error: 'Stripe API key not configured' };
+    }
+
+    try {
+      const bodyParams = new URLSearchParams();
+      bodyParams.append('amount', params.amountInCents.toString());
+      bodyParams.append('currency', 'usd');
+      bodyParams.append('destination', params.destinationAccountId);
+      bodyParams.append('metadata[orderId]', params.orderId);
+      bodyParams.append('description', `Biddr Seller Payout for Order ${params.orderId}`);
+
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': params.idempotencyKey || `tr_${params.orderId}`,
+      };
+
+      const response = await fetch('https://api.stripe.com/v1/transfers', {
+        method: 'POST',
+        headers,
+        body: bodyParams.toString(),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        return { success: false, error: data.error?.message || 'Stripe transfer failed' };
+      }
+
+      return { success: true, transferId: data.id };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error on Stripe transfer' };
+    }
+  }
+
+  /**
    * Releases custodial funds to the seller upon confirmed buyer delivery.
    * Guarantees idempotency via Stripe Idempotency-Key header.
    */
@@ -200,57 +244,15 @@ export class StripeConnectService {
       };
     }
 
-    try {
-      const amountInCents = Math.round(financials.netSellerPayout * 100);
-      const bodyParams = new URLSearchParams();
-      bodyParams.append('amount', amountInCents.toString());
-      bodyParams.append('currency', 'usd');
-      bodyParams.append('destination', params.destinationAccountId);
-      bodyParams.append('metadata[orderId]', params.orderId);
-      bodyParams.append('description', `Biddr Seller Payout for Order ${params.orderId}`);
+    const amountInCents = Math.round(financials.netSellerPayout * 100);
+    const transferResult = await this.executeDirectTransfer({
+      amountInCents,
+      destinationAccountId: params.destinationAccountId,
+      orderId: params.orderId,
+      idempotencyKey: params.idempotencyKey,
+    });
 
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      };
-
-      // Enforce idempotency
-      headers['Idempotency-Key'] = params.idempotencyKey || `tr_${params.orderId}`;
-
-      const response = await fetch('https://api.stripe.com/v1/transfers', {
-        method: 'POST',
-        headers,
-        body: bodyParams.toString(),
-      });
-
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        return {
-          success: false,
-          orderId: params.orderId,
-          grossAmount: financials.grossAmount,
-          commissionRate: financials.commissionRate,
-          commissionAmount: financials.commissionAmount,
-          processingFeeAmount: financials.processingFeeAmount,
-          netPayoutAmount: financials.netSellerPayout,
-          status: 'failed',
-          error: data.error?.message || 'Stripe transfer failed',
-        };
-      }
-
-      return {
-        success: true,
-        orderId: params.orderId,
-        grossAmount: financials.grossAmount,
-        commissionRate: financials.commissionRate,
-        commissionAmount: financials.commissionAmount,
-        processingFeeAmount: financials.processingFeeAmount,
-        netPayoutAmount: financials.netSellerPayout,
-        transferReference: data.id,
-        destinationAccount: params.destinationAccountId,
-        status: 'transferred',
-      };
-    } catch (err: any) {
+    if (!transferResult.success) {
       return {
         success: false,
         orderId: params.orderId,
@@ -260,9 +262,22 @@ export class StripeConnectService {
         processingFeeAmount: financials.processingFeeAmount,
         netPayoutAmount: financials.netSellerPayout,
         status: 'failed',
-        error: err.message || 'Network error processing seller transfer',
+        error: transferResult.error || 'Stripe transfer failed',
       };
     }
+
+    return {
+      success: true,
+      orderId: params.orderId,
+      grossAmount: financials.grossAmount,
+      commissionRate: financials.commissionRate,
+      commissionAmount: financials.commissionAmount,
+      processingFeeAmount: financials.processingFeeAmount,
+      netPayoutAmount: financials.netSellerPayout,
+      transferReference: transferResult.transferId,
+      destinationAccount: params.destinationAccountId,
+      status: 'transferred',
+    };
   }
 }
 
