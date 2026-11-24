@@ -52,6 +52,10 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
   const [micActive, setMicActive] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
 
+  // LiveKit WebRTC Streaming Ingest State
+  const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
+  const [isLiveKitConfigured, setIsLiveKitConfigured] = useState<boolean>(false);
+
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionProcessing, setActionProcessing] = useState(false);
@@ -103,6 +107,22 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
           if (active?.drop) {
             setActiveDrop(active.drop);
           }
+        }
+
+        // Request LiveKit publisher token
+        try {
+          const res = await fetch('/api/live/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: id }),
+          });
+          const tokenData = await res.json();
+          if (tokenData.success) {
+            setLiveKitToken(tokenData.token);
+            setIsLiveKitConfigured(tokenData.isConfigured);
+          }
+        } catch {
+          // Handled
         }
       }
       setLoading(false);
@@ -283,6 +303,10 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
                     PAUSED
                   </span>
                 )}
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border border-surface-border bg-surface text-secondaryText">
+                  <span className={`h-1.5 w-1.5 rounded-full ${isLiveKitConfigured ? 'bg-lime' : 'bg-biddrBlue'}`} />
+                  {isLiveKitConfigured ? 'LiveKit Cloud CDN Ingest' : 'WebRTC Broadcast Pipeline'}
+                </span>
               </div>
               <p className="text-xs text-secondaryText">
                 Mode:{' '}

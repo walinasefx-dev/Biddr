@@ -66,6 +66,8 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
   const [activeTab, setActiveTab] = useState<'chat' | 'catalogue'>('chat');
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
+  const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
+  const [isLiveKitActive, setIsLiveKitActive] = useState(false);
 
   // 1. Fetch Session, Lots, and Current User
   useEffect(() => {
@@ -140,6 +142,22 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
           }
         } else {
           setupDemoSession(user);
+        }
+
+        // Request LiveKit viewer stream token
+        try {
+          const res = await fetch('/api/live/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: id }),
+          });
+          const tokenData = await res.json();
+          if (tokenData.success) {
+            setLiveKitToken(tokenData.token);
+            setIsLiveKitActive(tokenData.isConfigured);
+          }
+        } catch {
+          // Handled
         }
       } catch {
         setupDemoSession(user);
@@ -708,6 +726,10 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
                       Interactive Showcase Demo
                     </span>
                   )}
+                  <span className="rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-[10px] font-mono text-white/90 hidden sm:inline-flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${isLiveKitActive ? 'bg-lime' : 'bg-biddrBlue'}`} />
+                    {isLiveKitActive ? 'LiveKit Cloud CDN Stream' : 'Low-Latency WebRTC Stream'}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">

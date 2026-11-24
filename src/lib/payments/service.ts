@@ -1,5 +1,6 @@
 import { PaymentProvider, PaymentIntentParams, PaymentResult, PaymentConfirmation, RefundResult } from './types';
 import { TestModePaymentProvider } from './providers/test-provider';
+import { StripePaymentProvider } from './providers/stripe-provider';
 
 /**
  * PaymentService
@@ -12,8 +13,18 @@ export class PaymentService {
   private defaultProvider: PaymentProvider;
 
   constructor() {
-    this.defaultProvider = new TestModePaymentProvider();
-    this.registerProvider(this.defaultProvider);
+    const testProvider = new TestModePaymentProvider();
+    const stripeProvider = new StripePaymentProvider();
+
+    this.registerProvider(testProvider);
+    this.registerProvider(stripeProvider);
+
+    // If Stripe secret key is present in environment, default to Stripe; otherwise Test Mode
+    if (process.env.STRIPE_SECRET_KEY) {
+      this.defaultProvider = stripeProvider;
+    } else {
+      this.defaultProvider = testProvider;
+    }
   }
 
   public registerProvider(provider: PaymentProvider): void {
