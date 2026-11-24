@@ -139,6 +139,59 @@ export class LiveKitStreamingService {
       serverUrl: this.wsUrl,
     };
   }
+
+  /**
+   * Terminate and close a LiveKit room server-side for admin moderation.
+   */
+  public async terminateRoom(roomName: string): Promise<boolean> {
+    if (!this.apiKey || !this.apiSecret) {
+      return true; // Test/local simulation mode
+    }
+
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const adminPayload = {
+        iss: this.apiKey,
+        sub: 'biddr_admin_service',
+        nbf: now - 5,
+        exp: now + 300,
+        video: {
+          room: roomName,
+          roomCreate: true,
+          roomAdmin: true,
+        },
+      };
+
+      const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+      const payload = base64UrlEncode(JSON.stringify(adminPayload));
+      const unsigned = `${header}.${payload}`;
+      const sig = crypto
+        .createHmac('sha256', this.apiSecret)
+        .update(unsigned)
+        .digest('base64')
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+
+      const adminToken = `${unsigned}.${sig}`;
+
+      // Convert wss:// to https:// for HTTP Twirp REST API
+      const httpBase = this.wsUrl.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://');
+      const response = await fetch(`${httpBase}/twirp/livekit.RoomService/DeleteRoom`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ room: roomName }),
+      });
+
+      return response.ok;
+    } catch (err) {
+      console.warn('Failed to call LiveKit DeleteRoom API:', err);
+      return false;
+    }
+  }
 }
 
 export const liveKitService = new LiveKitStreamingService();

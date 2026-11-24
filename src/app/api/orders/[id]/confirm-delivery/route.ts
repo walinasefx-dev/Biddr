@@ -10,7 +10,8 @@ interface RouteContext {
  * POST /api/orders/[id]/confirm-delivery
  *
  * Confirms order delivery by buyer and triggers automated seller payout release.
- * Deducts Biddr 5% marketplace commission and transfers net funds to seller.
+ * Applies fee rule: 0% introductory commission under 30 sales, 6% standard thereafter.
+ * Enforces idempotency and logs append-only audit record.
  */
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -56,15 +57,44 @@ export async function POST(request: Request, context: RouteContext) {
     const now = new Date().toISOString();
     const grossAmount = Number(order.total_amount || 0);
 
-    // 4. Execute Seller Payout via Stripe Connect
+    // 4. Query Seller's Historical Completed Sales Count
+    const { count: completedSalesCount } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('seller_id', order.seller_id)
+      .in('status', ['delivered', 'completed']);
+
+    // 5. Execute Seller Payout via Stripe Connect with Idempotency Key
     const destinationAccount = (order.seller as any)?.stripe_connect_account_id || null;
+    const payoutsEnabled = (order.seller as any)?.stripe_payouts_enabled ?? true;
+
     const payoutResult = await stripeConnectService.executeSellerPayout({
       orderId: order.id,
       grossAmount,
       destinationAccountId: destinationAccount,
+      sellerCompletedSalesCount: completedSalesCount || 0,
+      payoutsEnabled,
+      idempotencyKey: `tr_${order.id}`,
     });
 
-    // 5. Update Order Record in Database
+    // 6. Record in seller_transfers table
+    if (destinationAccount) {
+      await supabase.from('seller_transfers').insert({
+        order_id: order.id,
+        seller_id: order.seller_id,
+        destination_account: destinationAccount,
+        gross_amount: payoutResult.grossAmount,
+        commission_rate: payoutResult.commissionRate,
+        commission_amount: payoutResult.commissionAmount,
+        processing_fee_amount: payoutResult.processingFeeAmount,
+        net_amount: payoutResult.netPayoutAmount,
+        transfer_reference: payoutResult.transferReference || null,
+        idempotency_key: `tr_${order.id}`,
+        status: payoutResult.status,
+      });
+    }
+
+    // 7. Update Order Record in Database
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -79,7 +109,18 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update order status' }, { status: 500 });
     }
 
-    // 6. Dispatch Notifications to Buyer and Seller
+    // 8. Write Append-Only Audit Log
+    await supabase.from('audit_logs').insert({
+      actor_id: user.id,
+      action: 'order.confirm_delivery',
+      target_type: 'order',
+      target_id: order.id,
+      before_state: { status: order.status },
+      after_state: { status: 'delivered', payout: payoutResult },
+      reason: 'Buyer confirmed package delivery; funds released to seller.',
+    });
+
+    // 9. Dispatch Notifications to Buyer and Seller
     await supabase.from('notifications').insert([
       {
         user_id: user.id,
@@ -92,8 +133,8 @@ export async function POST(request: Request, context: RouteContext) {
         user_id: order.seller_id,
         type: 'payout_released',
         title: 'Funds Released — Delivery Confirmed',
-        message: `Buyer confirmed delivery of "${order.item_title || 'Item'}". Net payout of $${payoutResult.netPayoutAmount.toLocaleString()} has been released.`,
-        link_url: `/seller/orders/${order.id}`,
+        message: `Buyer confirmed delivery of "${order.item_title || 'Item'}". Net payout of $${payoutResult.netPayoutAmount.toLocaleString()} released (${(payoutResult.commissionRate * 100).toFixed(0)}% commission applied).`,
+        link_url: `/seller/payouts`,
       },
     ]);
 

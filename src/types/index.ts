@@ -195,16 +195,71 @@ export interface ReviewRecord {
   buyer?: UserProfile;
 }
 
+export type DisputeStatus =
+  | 'open'
+  | 'under_review'
+  | 'resolved_refund'
+  | 'resolved_release'
+  | 'dismissed'
+  | 'resolved_buyer'
+  | 'resolved_seller'
+  | 'closed';
+
 export interface DisputeRecord {
   id: string;
   order_id: string;
   raised_by: string;
   reason: 'item_not_received' | 'item_damaged' | 'not_as_described' | 'unauthorized_charge' | 'other';
   description: string;
-  status: 'open' | 'under_review' | 'resolved_buyer' | 'resolved_seller' | 'closed';
+  status: DisputeStatus;
   resolution_notes?: string | null;
+  evidence_urls?: string[];
+  resolved_by?: string | null;
+  resolved_at?: string | null;
   created_at: string;
   updated_at: string;
+  order?: AuctionOrderRecord;
+  raiser?: UserProfile;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  before_state: Record<string, any> | null;
+  after_state: Record<string, any> | null;
+  reason: string;
+  created_at: string;
+  actor?: UserProfile;
+}
+
+export interface SellerTransferRecord {
+  id: string;
+  order_id: string;
+  seller_id: string;
+  destination_account: string;
+  gross_amount: number;
+  commission_rate: number;
+  commission_amount: number;
+  processing_fee_amount: number;
+  net_amount: number;
+  transfer_reference: string | null;
+  idempotency_key: string;
+  status: 'pending' | 'transferred' | 'failed' | 'queued';
+  created_at: string;
+}
+
+export interface MarketplaceAnalytics {
+  total_gmv: number;
+  total_orders: number;
+  orders_by_status: Record<string, number>;
+  active_sellers: number;
+  active_streams: number;
+  open_disputes: number;
+  daily_bid_volume: number;
+  platform_fee_earnings: number;
 }
 
 // ============================================================
@@ -303,8 +358,11 @@ export interface UserProfile {
   avatar_url: string | null;
   bio: string | null;
   location: string | null;
+  role?: 'user' | 'admin';
   is_seller: boolean;
   seller_verified: boolean;
+  stripe_connect_account_id?: string | null;
+  stripe_payouts_enabled?: boolean;
   rating_avg?: number;
   review_count?: number;
   follower_count?: number;

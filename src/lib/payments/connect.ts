@@ -1,19 +1,27 @@
+import { calculateOrderFinancials, getCommissionRate, OrderFinancialBreakdown } from '../fees';
+
 /**
  * StripeConnectService
  *
- * Stage 6: Automated Seller Payouts & Marketplace Custody Engine.
- * Manages Stripe Express onboarding for sellers, payout status tracking,
- * and automated transfer disbursement upon confirmed buyer delivery.
+ * Automated Seller Payouts & Marketplace Custody Engine.
+ * Implements SEPARATE CHARGES AND TRANSFERS:
+ * 1. Buyer pays platform directly (held under Biddr Buyer Protection).
+ * 2. Platform creates an idempotent transfer to seller's Stripe Express account
+ *    upon confirmed delivery or dispute resolution in seller's favor.
+ * 3. Platform fee rule enforced: 0% under 30 completed sales, 6% standard.
+ *    Payment-processing fee passed through at cost (2.9% + $0.30).
  */
 export interface SellerPayoutResult {
   success: boolean;
   orderId: string;
   grossAmount: number;
+  commissionRate: number;
   commissionAmount: number;
+  processingFeeAmount: number;
   netPayoutAmount: number;
   transferReference?: string;
   destinationAccount?: string;
-  status: 'transferred' | 'held_internally' | 'failed';
+  status: 'transferred' | 'held_internally' | 'queued' | 'failed';
   error?: string;
 }
 
@@ -26,23 +34,16 @@ export interface ConnectAccountResult {
 
 export class StripeConnectService {
   private apiKey: string | null;
-  private readonly platformCommissionPercent = 5; // 5% marketplace commission
 
   constructor(apiKey?: string) {
     this.apiKey = apiKey || process.env.STRIPE_SECRET_KEY || null;
   }
 
   /**
-   * Calculates net payout and marketplace platform commission
+   * Calculates financials using centralized fee engine
    */
-  public calculatePayout(grossAmount: number, commissionPercent = this.platformCommissionPercent) {
-    const commission = Math.round(grossAmount * (commissionPercent / 100) * 100) / 100;
-    const netPayout = Math.round((grossAmount - commission) * 100) / 100;
-    return {
-      grossAmount,
-      commissionAmount: commission,
-      netPayoutAmount: netPayout,
-    };
+  public calculatePayout(grossAmount: number, sellerCompletedSales = 0): OrderFinancialBreakdown {
+    return calculateOrderFinancials(grossAmount, sellerCompletedSales);
   }
 
   /**
@@ -138,29 +139,69 @@ export class StripeConnectService {
   }
 
   /**
-   * Releases custodial funds to the seller upon confirmed buyer delivery
+   * Retrieves account status from Stripe (payouts_enabled, charges_enabled)
+   */
+  async getAccountStatus(accountId: string) {
+    if (!this.apiKey) return null;
+    try {
+      const response = await fetch(`https://api.stripe.com/v1/accounts/${encodeURIComponent(accountId)}`, {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Releases custodial funds to the seller upon confirmed buyer delivery.
+   * Guarantees idempotency via Stripe Idempotency-Key header.
    */
   async executeSellerPayout(params: {
     orderId: string;
     grossAmount: number;
     destinationAccountId?: string | null;
+    sellerCompletedSalesCount?: number;
+    payoutsEnabled?: boolean;
+    idempotencyKey?: string;
   }): Promise<SellerPayoutResult> {
-    const { grossAmount, commissionAmount, netPayoutAmount } = this.calculatePayout(params.grossAmount);
+    const financials = this.calculatePayout(params.grossAmount, params.sellerCompletedSalesCount || 0);
 
-    // If destination account is not provided, record payout for internal manual/ledger disbursement
+    // If destination account is not provided, record payout for internal manual ledger
     if (!params.destinationAccountId || !this.apiKey) {
       return {
         success: true,
         orderId: params.orderId,
-        grossAmount,
-        commissionAmount,
-        netPayoutAmount,
+        grossAmount: financials.grossAmount,
+        commissionRate: financials.commissionRate,
+        commissionAmount: financials.commissionAmount,
+        processingFeeAmount: financials.processingFeeAmount,
+        netPayoutAmount: financials.netSellerPayout,
         status: 'held_internally',
       };
     }
 
+    // Block sellers who are not payout-enabled from receiving release; queue transfer
+    if (params.payoutsEnabled === false) {
+      return {
+        success: true,
+        orderId: params.orderId,
+        grossAmount: financials.grossAmount,
+        commissionRate: financials.commissionRate,
+        commissionAmount: financials.commissionAmount,
+        processingFeeAmount: financials.processingFeeAmount,
+        netPayoutAmount: financials.netSellerPayout,
+        destinationAccount: params.destinationAccountId,
+        status: 'queued',
+        error: 'Seller payouts are not yet enabled on Stripe Connect. Transfer queued.',
+      };
+    }
+
     try {
-      const amountInCents = Math.round(netPayoutAmount * 100);
+      const amountInCents = Math.round(financials.netSellerPayout * 100);
       const bodyParams = new URLSearchParams();
       bodyParams.append('amount', amountInCents.toString());
       bodyParams.append('currency', 'usd');
@@ -168,12 +209,17 @@ export class StripeConnectService {
       bodyParams.append('metadata[orderId]', params.orderId);
       bodyParams.append('description', `Biddr Seller Payout for Order ${params.orderId}`);
 
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+
+      // Enforce idempotency
+      headers['Idempotency-Key'] = params.idempotencyKey || `tr_${params.orderId}`;
+
       const response = await fetch('https://api.stripe.com/v1/transfers', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers,
         body: bodyParams.toString(),
       });
 
@@ -182,9 +228,11 @@ export class StripeConnectService {
         return {
           success: false,
           orderId: params.orderId,
-          grossAmount,
-          commissionAmount,
-          netPayoutAmount,
+          grossAmount: financials.grossAmount,
+          commissionRate: financials.commissionRate,
+          commissionAmount: financials.commissionAmount,
+          processingFeeAmount: financials.processingFeeAmount,
+          netPayoutAmount: financials.netSellerPayout,
           status: 'failed',
           error: data.error?.message || 'Stripe transfer failed',
         };
@@ -193,9 +241,11 @@ export class StripeConnectService {
       return {
         success: true,
         orderId: params.orderId,
-        grossAmount,
-        commissionAmount,
-        netPayoutAmount,
+        grossAmount: financials.grossAmount,
+        commissionRate: financials.commissionRate,
+        commissionAmount: financials.commissionAmount,
+        processingFeeAmount: financials.processingFeeAmount,
+        netPayoutAmount: financials.netSellerPayout,
         transferReference: data.id,
         destinationAccount: params.destinationAccountId,
         status: 'transferred',
@@ -204,9 +254,11 @@ export class StripeConnectService {
       return {
         success: false,
         orderId: params.orderId,
-        grossAmount,
-        commissionAmount,
-        netPayoutAmount,
+        grossAmount: financials.grossAmount,
+        commissionRate: financials.commissionRate,
+        commissionAmount: financials.commissionAmount,
+        processingFeeAmount: financials.processingFeeAmount,
+        netPayoutAmount: financials.netSellerPayout,
         status: 'failed',
         error: err.message || 'Network error processing seller transfer',
       };
