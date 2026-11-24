@@ -47,7 +47,7 @@ export class LiveKitStreamingService {
   constructor() {
     this.apiKey = process.env.LIVEKIT_API_KEY || null;
     this.apiSecret = process.env.LIVEKIT_API_SECRET || null;
-    this.wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://live.biddr.io';
+    this.wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || 'wss://live.biddr.io';
   }
 
   public isConfigured(): boolean {
