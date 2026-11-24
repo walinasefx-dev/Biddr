@@ -4,9 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import CountdownTimer from '@/components/CountdownTimer';
+import { Navbar, Footer, CountdownTimer } from '@/components';
 import { createClient } from '@/lib/supabase/client';
 import {
   isValidUuid,

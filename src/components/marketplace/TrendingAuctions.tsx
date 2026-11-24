@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import AuctionCard from './AuctionCard';
+import AuctionCard from '../auctions/AuctionCard';
 import { createClient } from '@/lib/supabase/client';
 import type { AuctionItem } from '@/types';
 import { Flame, Sparkles, Filter } from 'lucide-react';

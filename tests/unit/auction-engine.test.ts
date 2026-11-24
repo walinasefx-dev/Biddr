@@ -6,7 +6,7 @@ import {
   type BidRecord,
   ANTI_SNIPE_WINDOW_MS,
   ANTI_SNIPE_EXTENSION_MS,
-} from '../src/lib/auction/engine';
+} from '../../src/lib/auction/engine';
 
 describe('Biddr Auction & Anti-Sniping Engine', () => {
   const baseDrop: AuctionDrop = {

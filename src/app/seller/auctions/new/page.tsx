@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
+import { Navbar, Footer } from '@/components';
 import { createClient } from '@/lib/supabase/client';
 import { MARKETPLACE_CATEGORIES, type UserProfile } from '@/types';
 import {

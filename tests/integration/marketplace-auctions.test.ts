@@ -12,8 +12,8 @@ import {
   type CreateAuctionInput,
   ANTI_SNIPE_WINDOW_MS,
   ANTI_SNIPE_EXTENSION_MS,
-} from '../src/lib/auction/engine';
-import { getDemoAuction, DEMO_AUCTIONS } from '../src/lib/auction/demo-auctions';
+} from '../../src/lib/auction/engine';
+import { getDemoAuction, DEMO_AUCTIONS } from '../../src/lib/auction/demo-auctions';
 
 describe('Stage 3: Marketplace & Auction Experience Test Suite', () => {
   const sellerId = 'seller-uuid-100';

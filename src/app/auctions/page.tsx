@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import AuctionCard from '@/components/AuctionCard';
+import { Navbar, Footer, AuctionCard } from '@/components';
 import { createClient } from '@/lib/supabase/client';
 import { MARKETPLACE_CATEGORIES, type AuctionItem } from '@/types';
 import { Search, Flame, Sparkles, Filter, SlidersHorizontal, ArrowUpDown } from 'lucide-react';

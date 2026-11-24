@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { UserProfile } from '../src/types';
+import type { UserProfile } from '../../src/types';
 
 // Helper validating username format
 function sanitizeAndValidateUsername(raw: string): { valid: boolean; username: string; error?: string } {
