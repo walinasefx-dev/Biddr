@@ -83,6 +83,18 @@ declare module 'lucide-react' {
   export const Instagram: LucideIcon;
   export const Twitter: LucideIcon;
   export const Disc: LucideIcon;
+  export const Heart: LucideIcon;
+  export const MessageSquare: LucideIcon;
+  export const Send: LucideIcon;
+  export const ThumbsUp: LucideIcon;
+  export const UserPlus: LucideIcon;
+  export const UserCheck: LucideIcon;
+  export const Radio: LucideIcon;
+  export const Volume2: LucideIcon;
+  export const VolumeX: LucideIcon;
+  export const Maximize2: LucideIcon;
+  export const Compass: LucideIcon;
+  export const Tv: LucideIcon;
   
   const icons: { [key: string]: LucideIcon };
   export default icons;

@@ -207,6 +207,65 @@ export interface DisputeRecord {
   updated_at: string;
 }
 
+// ============================================================
+// STAGE 5: SOCIAL COMMERCE & LIVE STREAMING TYPES
+// ============================================================
+
+export type PostType = 'standard' | 'product_showcase' | 'auction_teaser' | 'live_announcement';
+export type MediaType = 'image' | 'video' | 'carousel';
+
+export interface PostRecord {
+  id: string;
+  author_id: string;
+  caption: string | null;
+  media_urls: string[];
+  media_type: MediaType;
+  post_type: PostType;
+  drop_id?: string | null;
+  session_id?: string | null;
+  like_count: number;
+  comment_count: number;
+  share_count: number;
+  created_at: string;
+  updated_at: string;
+  author?: UserProfile;
+  drop?: AuctionDropRecord;
+  session?: AuctionSessionRecord;
+  is_liked?: boolean;
+  is_saved?: boolean;
+}
+
+export interface FollowRecord {
+  id: string;
+  follower_id: string;
+  seller_id: string;
+  created_at: string;
+}
+
+export interface PostCommentRecord {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author?: UserProfile;
+}
+
+export interface LiveChatMessage {
+  id: string;
+  session_id: string;
+  user_id: string;
+  message: string;
+  is_system: boolean;
+  created_at: string;
+  user?: {
+    username: string;
+    avatar_url: string | null;
+    is_seller?: boolean;
+    seller_verified?: boolean;
+  };
+}
+
 export interface AuctionItem {
   id: string;
   title: string;
@@ -248,6 +307,8 @@ export interface UserProfile {
   seller_verified: boolean;
   rating_avg?: number;
   review_count?: number;
+  follower_count?: number;
+  following_count?: number;
   created_at: string;
   updated_at: string;
 }

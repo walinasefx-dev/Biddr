@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Menu, X, Flame, Sparkles, User, ArrowRight, LogOut, Bell, ShoppingBag } from 'lucide-react';
+import { Menu, X, Flame, Sparkles, User, ArrowRight, LogOut, Bell, ShoppingBag, Radio } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function Navbar() {
@@ -124,7 +124,7 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-6 lg:gap-8">
           <Link
             href="/auctions"
             className="text-sm font-semibold text-white hover:text-lime transition-colors flex items-center gap-1.5"
@@ -132,23 +132,34 @@ export default function Navbar() {
             <Flame className="w-4 h-4 text-coral" />
             Marketplace
           </Link>
+          <Link
+            href="/feed"
+            className="text-sm font-medium text-secondaryText hover:text-white transition-colors flex items-center gap-1.5"
+          >
+            <Sparkles className="w-4 h-4 text-lime" />
+            Feed
+          </Link>
+          <Link
+            href="/live"
+            className="text-sm font-medium text-secondaryText hover:text-white transition-colors flex items-center gap-1.5"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-coral opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-coral"></span>
+            </span>
+            <Radio className="w-4 h-4 text-coral" />
+            Live
+          </Link>
           <a
             href="/#categories"
             className="text-sm font-medium text-secondaryText hover:text-white transition-colors"
           >
             Categories
           </a>
-          <a
-            href="/#how-it-works"
-            className="text-sm font-medium text-secondaryText hover:text-white transition-colors"
-          >
-            How It Works
-          </a>
           <Link
             href="/seller"
             className="text-sm font-medium text-secondaryText hover:text-white transition-colors flex items-center gap-1.5"
           >
-            <Sparkles className="w-4 h-4 text-lime" />
             Seller Studio
           </Link>
         </nav>
@@ -251,6 +262,25 @@ export default function Navbar() {
             >
               <Flame className="w-5 h-5 text-coral" />
               Marketplace Drops
+            </Link>
+            <Link
+              href="/feed"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
+            >
+              <Sparkles className="w-5 h-5 text-lime" />
+              Social Feed
+            </Link>
+            <Link
+              href="/live"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-semibold text-white hover:bg-surface-hover"
+            >
+              <Radio className="w-5 h-5 text-coral" />
+              <span>Live Shows</span>
+              <span className="ml-auto rounded-full bg-coral px-2 py-0.5 text-[10px] font-black text-white">
+                LIVE
+              </span>
             </Link>
             <a
               href="/#categories"

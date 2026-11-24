@@ -7,3 +7,4 @@ export * from './payments';
 export * from './notifications';
 export * from './trust';
 export * from './sessions';
+export * from './social';
