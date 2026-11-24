@@ -69,11 +69,15 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Protected routes: /profile (except public /profile/[username]), /profile/edit, /dashboard
+  // Protected routes: private user profile, edit profile, dashboard, buyer orders, seller studio, post creation, notifications
   const isProtectedPath =
     pathname === '/profile' ||
     pathname.startsWith('/profile/edit') ||
-    pathname.startsWith('/dashboard');
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/orders') ||
+    pathname.startsWith('/seller') ||
+    pathname === '/post/new' ||
+    pathname === '/notifications';
 
   if (isProtectedPath && !user) {
     const redirectUrl = request.nextUrl.clone();

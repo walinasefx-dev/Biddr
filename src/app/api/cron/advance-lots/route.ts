@@ -9,8 +9,17 @@ import { createClient } from '@/lib/supabase/server';
  * Inspects all active live auction sessions with expired lots and advances them automatically.
  * Guarantees that Mode 1 & 2 catalogues never stall even if the seller's browser disconnects.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // 0. Verify CRON_SECRET if configured in production
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ error: 'Unauthorized: Invalid cron secret' }, { status: 401 });
+      }
+    }
+
     const supabase = await createClient();
     const now = new Date().toISOString();
 
