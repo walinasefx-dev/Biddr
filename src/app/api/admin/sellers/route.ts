@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 
 /**
  * GET /api/admin/sellers
@@ -91,8 +92,15 @@ export async function POST(request: Request) {
 
     const afterState = { seller_verified: isApproved };
 
+    let serviceClient: any;
+    try {
+      serviceClient = createServiceClient();
+    } catch {
+      serviceClient = supabase;
+    }
+
     // 3. Record in Seller Verification History
-    await supabase.from('seller_verification_history').insert({
+    await serviceClient.from('seller_verification_history').insert({
       seller_id: sellerId,
       reviewed_by: auth.user.id,
       status: isApproved ? 'approved' : 'rejected',
@@ -100,7 +108,7 @@ export async function POST(request: Request) {
     });
 
     // 4. Append-Only Audit Log
-    await supabase.from('audit_logs').insert({
+    await serviceClient.from('audit_logs').insert({
       actor_id: auth.user.id,
       action: isApproved ? 'seller.verify_approve' : 'seller.verify_reject',
       target_type: 'profile',

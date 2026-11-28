@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { stripeConnectService } from '@/lib/payments/connect';
 
 interface RouteContext {
@@ -77,9 +78,16 @@ export async function POST(request: Request, context: RouteContext) {
       idempotencyKey: `tr_${order.id}`,
     });
 
+    let serviceClient: any;
+    try {
+      serviceClient = createServiceClient();
+    } catch {
+      serviceClient = supabase;
+    }
+
     // 6. Record in seller_transfers table
     if (destinationAccount) {
-      await supabase.from('seller_transfers').insert({
+      await serviceClient.from('seller_transfers').insert({
         order_id: order.id,
         seller_id: order.seller_id,
         destination_account: destinationAccount,
@@ -110,7 +118,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     // 8. Write Append-Only Audit Log
-    await supabase.from('audit_logs').insert({
+    await serviceClient.from('audit_logs').insert({
       actor_id: user.id,
       action: 'order.confirm_delivery',
       target_type: 'order',

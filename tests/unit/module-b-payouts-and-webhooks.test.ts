@@ -92,9 +92,9 @@ describe('Module B: Stripe Webhooks, Idempotency & Dispute State Transitions', (
     });
   });
 
-  // 3. FEE RULE EDGE CASES (29th, 30th, 31st sale)
+  // 3. FEE RULE EDGE CASES (30th vs 31st sale boundary)
   describe('Fee Rule Exact Boundary Transitions', () => {
-    it('applies 0% commission on the 29th completed sale', () => {
+    it('applies 0% commission on the 30th completed sale (29 prior sales)', () => {
       const rate = getCommissionRate(29);
       expect(rate).toBe(0.0);
 
@@ -106,7 +106,7 @@ describe('Module B: Stripe Webhooks, Idempotency & Dispute State Transitions', (
       expect(breakdown.netSellerPayout).toBe(96.8);
     });
 
-    it('applies 6% standard commission on the 30th completed sale', () => {
+    it('applies 6% standard commission on the 31st completed sale (30 prior sales)', () => {
       const rate = getCommissionRate(30);
       expect(rate).toBe(0.06);
 
@@ -118,7 +118,7 @@ describe('Module B: Stripe Webhooks, Idempotency & Dispute State Transitions', (
       expect(breakdown.netSellerPayout).toBe(90.8);
     });
 
-    it('applies 6% standard commission on the 31st completed sale', () => {
+    it('applies 6% standard commission on the 32nd completed sale (31 prior sales)', () => {
       const rate = getCommissionRate(31);
       expect(rate).toBe(0.06);
 

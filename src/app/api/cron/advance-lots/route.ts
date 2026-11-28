@@ -11,13 +11,14 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET(request: Request) {
   try {
-    // 0. Verify CRON_SECRET if configured in production
+    // 0. Enforce CRON_SECRET in all environments
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        return NextResponse.json({ error: 'Unauthorized: Invalid cron secret' }, { status: 401 });
-      }
+    const authHeader = request.headers.get('authorization');
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Valid CRON_SECRET required in Authorization header' },
+        { status: 401 }
+      );
     }
 
     const supabase = await createClient();

@@ -181,7 +181,7 @@ export default function LiveRoomPage({ params }: LiveRoomPageProps) {
     async function connectLiveKit() {
       try {
         const { Room, RoomEvent } = await import('livekit-client');
-        const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || 'wss://biddr-f9j6520c.livekit.cloud';
+        const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://biddr-f9j6520c.livekit.cloud';
 
         room = new Room({
           adaptiveStream: true,

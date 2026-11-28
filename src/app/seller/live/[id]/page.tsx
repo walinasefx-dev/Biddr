@@ -226,7 +226,7 @@ export default function SellerLiveStudioPage({ params }: SellerLiveStudioProps) 
         if (liveKitToken && typeof window !== 'undefined') {
           try {
             const { Room, createLocalTracks } = await import('livekit-client');
-            const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || process.env.LIVEKIT_URL || 'wss://biddr-f9j6520c.livekit.cloud';
+            const wsUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://biddr-f9j6520c.livekit.cloud';
 
             const room = new Room({
               adaptiveStream: true,

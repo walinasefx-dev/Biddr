@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { liveKitService } from '@/lib/streaming/livekit';
 
 /**
@@ -68,6 +69,12 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createClient();
+    let serviceClient: any;
+    try {
+      serviceClient = createServiceClient();
+    } catch {
+      serviceClient = supabase;
+    }
 
     // 1. Fetch Session
     const { data: session, error: sessionErr } = await supabase
@@ -107,7 +114,7 @@ export async function POST(request: Request) {
       const afterState = { status: 'ended', ended_at: now };
 
       // 5. Append-only Audit Log
-      await supabase.from('audit_logs').insert({
+      await serviceClient.from('audit_logs').insert({
         actor_id: auth.user.id,
         action: 'stream.terminate',
         target_type: 'auction_session',
@@ -147,7 +154,7 @@ export async function POST(request: Request) {
       const afterState = { status: 'paused', updated_at: now };
 
       // Audit Log
-      await supabase.from('audit_logs').insert({
+      await serviceClient.from('audit_logs').insert({
         actor_id: auth.user.id,
         action: 'stream.pause',
         target_type: 'auction_session',

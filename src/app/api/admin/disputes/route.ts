@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminAuth } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { stripeConnectService } from '@/lib/payments/connect';
 
 /**
@@ -79,6 +80,12 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createClient();
+    let serviceClient: any;
+    try {
+      serviceClient = createServiceClient();
+    } catch {
+      serviceClient = supabase;
+    }
 
     // 1. Fetch Dispute with Order
     const { data: dispute, error: disputeErr } = await supabase
@@ -187,7 +194,7 @@ export async function POST(request: Request) {
       };
 
       // Append-only Audit Log
-      await supabase.from('audit_logs').insert({
+      await serviceClient.from('audit_logs').insert({
         actor_id: auth.user.id,
         action: 'dispute.resolve_refund',
         target_type: 'dispute',
@@ -278,7 +285,7 @@ export async function POST(request: Request) {
       };
 
       // Append-only Audit Log
-      await supabase.from('audit_logs').insert({
+      await serviceClient.from('audit_logs').insert({
         actor_id: auth.user.id,
         action: 'dispute.resolve_release',
         target_type: 'dispute',
@@ -332,7 +339,7 @@ export async function POST(request: Request) {
       const afterState = { dispute_status: 'dismissed' };
 
       // Append-only Audit Log
-      await supabase.from('audit_logs').insert({
+      await serviceClient.from('audit_logs').insert({
         actor_id: auth.user.id,
         action: 'dispute.dismiss',
         target_type: 'dispute',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { stripeConnectService } from '@/lib/payments/connect';
 
 /**
@@ -71,7 +72,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing event ID or type' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    let supabase: any;
+    try {
+      supabase = createServiceClient();
+    } catch {
+      supabase = await createClient();
+    }
     const now = new Date().toISOString();
 
     // 2. Webhook Idempotency Check: check if already processed
